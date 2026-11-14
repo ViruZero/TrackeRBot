@@ -105,12 +105,62 @@ class Digest(commands.Cog):
             except Exception:
                 joke = "Why don't scientists trust atoms? Because they make up everything!"
 
+        # Split joke into setup and answer; wrap only the punchline in spoiler tags
+        joke_setup, joke_answer = "", ""
+        try:
+            # Try splitting at last '?' then stripping trailing punctuation
+            if "?" in joke:
+                question_parts = joke.rsplit("?", 1)
+                joke_setup = question_parts[0].strip()
+                remainder = question_parts[1].strip()
+                if len(remainder.split()) <= 3 or not remainder.endswith("."):
+                    joke_answer = remainder
+            elif "because" in joke.lower():
+                # Only split if there's meaningful content before AND after 'because'
+                # Avoid matching phrases like "Because I like it" or similar standalone answers
+                words = joke.lower().split()
+                because_idx = next((i for i, w in enumerate(words) if w == "because"), -1)
+            
+                if because_idx > 0 and len(words) > because_idx + 2:  # Something before AND after 'because'
+                    parts = joke.lower().rsplit(" because", 1)
+                    if len(parts) > 0:
+                        joke_setup = parts[0].strip()
+                    else:
+                        joke_setup = joke.strip()
+                    if len(parts) > 1:
+                        joke_answer = parts[1].strip()
+                    else:
+                        joke_answer = ""
+                else:
+                    # Standalone 'because' phrase - treat as full spoiler
+                    joke_answer = joke
+            elif "answer:" in joke.lower():
+                parts = joke.lower().rsplit(" answer:", 1)
+                if len(parts) > 0:
+                    joke_setup = parts[0].strip()
+                else:
+                    joke_setup = joke.strip()
+                if len(parts) > 1:
+                    joke_answer = parts[1].strip()
+                else:
+                    joke_answer = ""
+            else:
+                # Fallback: wrap entire joke in spoiler if no clear split found
+                joke_answer = joke
+
+            # If answer is empty after heuristic splitting, use whole joke as answer
+            if not joke_answer.strip():
+                joke_answer = joke
+        except Exception:
+            # Catch-all fallback on parsing error
+            joke_answer = joke
+
         header_embed = discord.Embed(
             title=f"{holiday['emoji']} {holiday['title_prefix']} — {date_str}",
             description=(
                 f"Here is your morning overview, Philadelphia weather forecast, and price check summary.\n\n"
                 f"💡 **Inspirational Quote of the Day**\n*{quote}*\n\n"
-                f"😂 **Joke of the Day**\n{joke}\n\n"
+                f"😂 **Joke of the Day**\n{joke_setup}\n||{joke_answer}||\n\n"
                 f"🌡️ **Philadelphia Weather (3-Hour Outlook)**\n{weather_snippet}"
             ),
             color=holiday["color"]
