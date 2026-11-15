@@ -1,7 +1,5 @@
 from ai_helper import smart_ai_post
 import os
-import tempfile
-import uuid
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
@@ -12,7 +10,6 @@ import re
 import traceback
 import requests
 from cogs.tracker_image import fetch_page_data, parse_with_ai
-from cogs.items_image import render_items_image
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, 'tracker.db')
@@ -128,29 +125,34 @@ class TrackerPrice(commands.Cog):
             await self._items_page_switch(interaction, custom_id)
         return callback
 
-    def _build_items_view(self, user_id, current_page, page_items, total_pages):
-        """Build the view with link buttons for the page items plus pagination buttons."""
-        view = ui.View(timeout=None)
+    def _build_items_layout(self, user_id, current_page, page_items, total_pages):
+        """Build a Components V2 layout view for the items list."""
+        lv = ui.LayoutView(timeout=None)
+        container = ui.Container(accent_color=0x2b2d31)
+        container.add_item(ui.TextDisplay(f"## Your Tracked Items\nPage {current_page} / {total_pages}"))
 
-        # Link buttons, max 5 per action row
-        for i, item in enumerate(page_items):
-            db_id, url = item[0], item[1]
+        for item in page_items:
+            db_id, url, title, curr, target, orig, img = item
+            status = self.generate_status(curr, target, orig)
+            display_title = title if len(title) <= 90 else title[:87] + "..."
+            text = f"**#{db_id} - {display_title}**\n${curr:.2f}  |  Target ${target:.2f}  |  {status}"
             short_url = _shorten_url(url)
-            if short_url is None:
-                continue
-            view.add_item(ui.Button(label=f"View #{db_id}", style=discord.ButtonStyle.link, url=short_url, row=i // 5))
+            if short_url is not None:
+                accessory = ui.Button(label="View", style=discord.ButtonStyle.link, url=short_url)
+            else:
+                accessory = ui.Button(label="View", style=discord.ButtonStyle.secondary, custom_id=f"items_goto_{user_id}_{db_id}")
+                accessory.callback = lambda interaction, full_url=url: interaction.response.send_message(full_url, ephemeral=True)
+            container.add_item(ui.Section(ui.TextDisplay(text), accessory=accessory))
 
-        pagination_row = (len(page_items) + 4) // 5
-        if current_page > 1:
-            prev_btn = ui.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{current_page - 1}", row=pagination_row)
-            prev_btn.callback = self._make_page_callback(prev_btn.custom_id)
-            view.add_item(prev_btn)
-
-        next_page = min(current_page + 1, total_pages)
-        next_btn = ui.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{user_id}_{next_page}", row=pagination_row)
+        prev_btn = ui.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{current_page - 1}", disabled=(current_page == 1))
+        prev_btn.callback = self._make_page_callback(prev_btn.custom_id)
+        page_btn = ui.Button(label=f"Page {current_page} / {total_pages}", style=discord.ButtonStyle.gray, disabled=True)
+        next_btn = ui.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{user_id}_{min(current_page + 1, total_pages)}", disabled=(current_page == total_pages))
         next_btn.callback = self._make_page_callback(next_btn.custom_id)
-        view.add_item(next_btn)
-        return view
+        container.add_item(ui.ActionRow(prev_btn, page_btn, next_btn))
+
+        lv.add_item(container)
+        return lv
 
     def build_item_embed(self, item_id, url, title, target_price, original_price, current_price, image_url, comparison_links):
         domain = urlparse(url).netloc.replace("www.", "")
@@ -262,32 +264,13 @@ class TrackerPrice(commands.Cog):
             end_idx = start_idx + 10
             page_items = items[start_idx:end_idx]
             
-            page_label = f"Page {current_page} / {total_pages}"
-            rows = []
-            for db_id, url, title, curr, target, orig, img in page_items:
-                status = self.generate_status(curr, target, orig)
-                status_color = 'green' if curr <= target else ('yellow' if curr < orig else 'red')
-                rows.append({
-                    'id': db_id,
-                    'title': title,
-                    'curr': curr,
-                    'target': target,
-                    'orig': orig,
-                    'status_text': status,
-                    'status_color': status_color,
-                    'img_url': img,
-                })
-
-            out_path = os.path.join(tempfile.gettempdir(), f'tracked_items_{interaction.user.id}_{uuid.uuid4().hex}.png')
-            await asyncio.to_thread(render_items_image, page_label, rows, out_path)
-
-            view = self._build_items_view(interaction.user.id, current_page, page_items, total_pages)
+            layout = self._build_items_layout(interaction.user.id, current_page, page_items, total_pages)
 
             try:
-                await interaction.followup.send(file=discord.File(out_path), view=view)
+                await interaction.followup.send(view=layout)
             except Exception as e:
                 traceback.print_exc()
-                print(f"Failed to send items image: {e}", flush=True)
+                print(f"Failed to send items layout: {e}", flush=True)
                 try:
                     await interaction.followup.send("Failed to load your tracked items. Please try again.")
                 except Exception:
@@ -323,30 +306,11 @@ class TrackerPrice(commands.Cog):
             end_idx = start_idx + 10
             page_items = all_items[start_idx:end_idx]
 
-            page_label = f"Page {new_page} / {total_pages}"
-            rows = []
-            for db_id, url, title, curr, target, orig, img in page_items:
-                status = self.generate_status(curr, target, orig)
-                status_color = 'green' if curr <= target else ('yellow' if curr < orig else 'red')
-                rows.append({
-                    'id': db_id,
-                    'title': title,
-                    'curr': curr,
-                    'target': target,
-                    'orig': orig,
-                    'status_text': status,
-                    'status_color': status_color,
-                    'img_url': img,
-                })
-
-            out_path = os.path.join(tempfile.gettempdir(), f'tracked_items_{user_id}_{uuid.uuid4().hex}.png')
-            await asyncio.to_thread(render_items_image, page_label, rows, out_path)
-
-            view = self._build_items_view(user_id, new_page, page_items, total_pages)
+            layout = self._build_items_layout(user_id, new_page, page_items, total_pages)
             try:
-                await interaction.response.send_message(file=discord.File(out_path), view=view)
+                await interaction.response.edit_message(view=layout)
             except Exception:
-                await interaction.followup.send(file=discord.File(out_path), view=view)
+                await interaction.followup.send(view=layout)
         except Exception as e:
             print(f"Error handling page switch: {e}")
             try:
