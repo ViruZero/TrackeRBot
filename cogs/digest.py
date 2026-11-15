@@ -89,7 +89,8 @@ class Digest(commands.Cog):
         quote = holiday["quote"]
         if not quote:
             quote_prompt = (
-                f"Give me a short, unique, inspiring morning quote (1 sentence) about theme '{today_theme}' and date '{date_str}'. "
+                f"Give me a short, unique, inspiring morning quote (1 sentence) about theme '{today_theme}'. "
+                "Do not mention the date or day. "
                 "Return ONLY the quote text, no quotation marks or author needed."
             )
             quote_payload = {"model": "llama3.1", "prompt": quote_prompt, "stream": False}
@@ -101,32 +102,33 @@ class Digest(commands.Cog):
             except Exception:
                 today_doy = now.timetuple().tm_yday
                 if today_doy % 10 == 0:
-                    quote = f"Inspirational note for {date_str}: The best way to predict the future is to create it with today's theme of '{today_theme}'. 🔥"
+                    quote = f"Inspirational note: The best way to predict the future is to create it with today's theme of '{today_theme}'. 🔥"
                 elif today_doy % 10 == 1:
                     quote = f"Morning wisdom: Embrace the day's theme — '{today_theme}' — and make every moment count. ✨"
                 elif today_doy % 10 == 2:
-                    quote = f"For {date_str}: Small steps in '{today_theme}' lead to big achievements. Keep going! 💪"
+                    quote = f"Small steps in '{today_theme}' lead to big achievements. Keep going! 💪"
                 elif today_doy % 10 == 3:
                     quote = f"The theme '{today_theme}' reminds us: Growth happens when we stretch beyond comfort zones. 🌱"
                 elif today_doy % 10 == 4:
                     quote = f"Morning mantra: Today is a gift, themed '{today_theme}', to make the most of. 🎁"
                 elif today_doy % 10 == 5:
-                    quote = f"Wisdom for {date_str}: Let '{today_theme}' guide your heart and actions today. 💫"
+                    quote = f"Wisdom: Let '{today_theme}' guide your heart and actions today. 💫"
                 elif today_doy % 10 == 6:
                     quote = f"Daily spark: The theme '{today_theme}' means starting fresh with purpose every morning. 🌅"
                 elif today_doy % 10 == 7:
-                    quote = f"Quote for {date_str}: Focus on '{today_theme}', find joy in the simple moments. ☕"
+                    quote = f"Focus on '{today_theme}', find joy in the simple moments. ☕"
                 elif today_doy % 10 == 8:
                     quote = f"Inspiration: Today's theme '{today_theme}' shows us beauty is everywhere if we look. 🎨"
                 elif today_doy % 10 == 9:
-                    quote = f"Motivation for {date_str}: Let '{today_theme}' energize your day with fresh perspective. ⚡"
+                    quote = f"Motivation: Let '{today_theme}' energize your day with fresh perspective. ⚡"
                 else:
                     quote = "Rise and shine; today is yours to conquer."
 
         joke = holiday["joke"]
         if not joke:
             joke_prompt = (
-                f"Tell me a short, clever, funny everyday joke about theme '{today_theme}' on date '{date_str}'. "
+                f"Tell me a short, clever, funny everyday joke about theme '{today_theme}'. "
+                "Do not mention the date or day. "
                 "The joke must NOT be about programming or tech. "
                 "Format it exactly as: 'Setup? ||Punchline||' where only the punchline is wrapped in double pipe spoiler markers."
             )
