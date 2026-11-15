@@ -7,6 +7,7 @@ import sqlite3
 from urllib.parse import urlparse, quote_plus
 import asyncio
 import requests
+import base64
 from cogs.tracker_image import fetch_page_data, parse_with_ai
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -187,16 +188,23 @@ class TrackerPrice(commands.Cog):
             for db_id, title, curr, target, orig, img in page_items:
                 status = self.generate_status(curr, target, orig)
                 
-                # Create thumbnail box style like the reference image
-                thumb_text = f"📦\n{title[:15]}... (${curr:.2f})"
-                
+                # Use product image if available, otherwise use placeholder black square with N/A
+                if img:
+                    embed.set_thumbnail(url=img)
+                else:
+                    # Create a black square SVG with N/A text for missing images
+                    svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
+                        <rect width="100%" height="100%" fill="#000000"/>
+                        <text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">N/A</text>
+                    </svg>'''
+                    thumb_placeholder = f"data:image/svg+xml;base64,{base64.b64encode(svg_data.encode()).decode()}"
+                    embed.set_thumbnail(url=thumb_placeholder)
+                # Add product info fields
                 embed.add_field(
-                    name=f"{thumb_text}\nCurrent: ${curr:.2f} | Target: ${target:.2f}",
+                    name=f"{title[:15]}... (${curr:.2f})",
                     value=f"**Status**: {status}\n\n[View]",
                     inline=False
                 )
-                if img:
-                    embed.set_thumbnail(url=img)
             embed.set_footer(text=f"Page {current_page}/{total_pages}")
             
             # Add interactive buttons for navigation - create view with components
@@ -252,14 +260,25 @@ class TrackerPrice(commands.Cog):
             embed = discord.Embed(title="Your Tracked Items", description=f"Page {new_page} / {total_pages}", color=0x3498db)
             for db_id, title, curr, target, orig, img in page_items:
                 status = self.generate_status(curr, target, orig)
-                thumb_text = f"📦\n{title[:15]}... (${curr:.2f})"
+                
+                # Use product image if available, otherwise use placeholder black square with N/A
+                if img:
+                    embed.set_thumbnail(url=img)
+                else:
+                    # Create a black square SVG with N/A text for missing images
+                    svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
+                        <rect width="100%" height="100%" fill="#000000"/>
+                        <text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">N/A</text>
+                    </svg>'''
+                    thumb_placeholder = f"data:image/svg+xml;base64,{base64.b64encode(svg_data.encode()).decode()}"
+                    embed.set_thumbnail(url=thumb_placeholder)
+                
+                # Add product info fields
                 embed.add_field(
-                    name=f"{thumb_text}\nCurrent: ${curr:.2f} | Target: ${target:.2f}",
+                    name=f"{title[:15]}... (${curr:.2f})",
                     value=f"**Status**: {status}\n\n[View]",
                     inline=False
                 )
-                if img:
-                    embed.set_thumbnail(url=img)
             
             # Build buttons for new page
             view = ui.View(timeout=None)
