@@ -163,8 +163,10 @@ class TrackerPrice(commands.Cog):
         """Build a Components V2 layout view for the items list."""
         lv = ui.LayoutView(timeout=None)
         container = ui.Container(accent_color=0x2b2d31)
+        gallery = None
         if with_banner:
-            container.add_item(ui.MediaGallery(ui.MediaGalleryItem(media='attachment://items_banner.png')))
+            gallery = ui.MediaGallery()
+            gallery.add_item(media='attachment://items_banner.png')
 
         for item in page_items:
             db_id, url, title, curr, target, orig, img = item
@@ -191,6 +193,8 @@ class TrackerPrice(commands.Cog):
         next_btn.callback = self._make_page_callback(next_btn.custom_id)
         container.add_item(ui.ActionRow(prev_btn, page_btn, next_btn))
 
+        if gallery is not None:
+            lv.add_item(gallery)
         lv.add_item(container)
         return lv
 
