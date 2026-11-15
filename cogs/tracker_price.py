@@ -1,7 +1,7 @@
 from ai_helper import smart_ai_post
 import os
 import discord
-from discord import app_commands
+from discord import app_commands, ui
 from discord.ext import commands
 import sqlite3
 from urllib.parse import urlparse, quote_plus
@@ -168,18 +168,124 @@ class TrackerPrice(commands.Cog):
             await interaction.followup.send(embed=embed)
             
         else:
-            self.c.execute("SELECT id, title, current_price, target_price FROM items WHERE user_id=? ORDER BY id ASC", (interaction.user.id,))
+            self.c.execute("SELECT id, title, current_price, target_price, original_price, image_url FROM items WHERE user_id=? ORDER BY id ASC", (interaction.user.id,))
             items = self.c.fetchall()
             
             if not items:
                 await interaction.followup.send("You are not tracking any items.")
                 return
                 
-            embed = discord.Embed(title="Your Tracked Items", description="Use `/items <id>` to view full details.", color=0x3498db)
-            for db_id, title, curr, target in items:
-                status = self.generate_status(curr, target, curr)
-                embed.add_field(name=f"ID {db_id}: {title[:40]}...", value=f"Current: ${curr:.2f} | Target: ${target:.2f}\nStatus: {status}", inline=False)
-            await interaction.followup.send(embed=embed)
+            total_pages = max(1, (len(items) + 9) // 10)
+            current_page = 1
+            
+            # Calculate slice for current page (1-indexed in DB)
+            start_idx = (current_page - 1) * 10
+            end_idx = start_idx + 10
+            page_items = items[start_idx:end_idx]
+            
+            embed = discord.Embed(title="Your Tracked Items", description=f"Page {current_page} / {total_pages}", color=0x3498db)
+            for db_id, title, curr, target, orig, img in page_items:
+                status = self.generate_status(curr, target, orig)
+                
+                # Create thumbnail box style like the reference image
+                thumb_text = f"📦\n{title[:15]}... (${curr:.2f})"
+                
+                embed.add_field(
+                    name=f"{thumb_text}\nCurrent: ${curr:.2f} | Target: ${target:.2f}",
+                    value=f"**Status**: {status}\n\n[View]",
+                    inline=False
+                )
+                if img:
+                    embed.set_thumbnail(url=img)
+            embed.set_footer(text=f"Page {current_page}/{total_pages}")
+            
+            # Add interactive buttons for navigation - create view with components
+            buttons = []
+            if current_page > 1:
+                prev_button = discord.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{interaction.user.id}_{current_page-1}")
+                buttons.append(prev_button)
+            
+            next_page = min(current_page + 1, total_pages)
+            next_button = discord.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{interaction.user.id}_{next_page}")
+            buttons.append(next_button)
+            
+            # Create view with the embed and buttons - manual construction
+            view = ui.View(timeout=None)
+            for btn in buttons:
+                view.children.append(btn)
+            
+            # Add click callbacks if there are buttons
+            if len(buttons) > 0:
+                for btn in buttons:
+                    btn.callback = lambda interaction, btn=btn: self._items_page_switch(interaction, btn.custom_id)
+            
+            await interaction.followup.send(embed=embed, view=view)
+    
+    async def _items_page_switch(self, interaction, custom_id):
+        """Handle button clicks to switch pages"""
+        try:
+            user_id = int(custom_id.split("_")[2])
+            direction = custom_id.split("_")[-1]
+            
+            # Verify the user owns this view and get their items
+            self.c.execute("SELECT * FROM items WHERE user_id=? ORDER BY id ASC", (user_id,))
+            all_items = self.c.fetchall()
+            if not all_items:
+                await interaction.response.send_message("No tracked items found.", ephemeral=True)
+                return
+            
+            # Determine new page
+            total_pages = max(1, (len(all_items) + 9) // 10)
+            if direction == "prev":
+                current_page_token = int(custom_id.split("_")[3])
+                new_page = max(1, current_page_token - 1)
+            else:  # next
+                current_page_token = int(custom_id.split("_")[3])
+                new_page = min(total_pages, current_page_token + 1)
+            
+            # Get page slice
+            start_idx = (new_page - 1) * 10
+            end_idx = start_idx + 10
+            page_items = all_items[start_idx:end_idx]
+            
+            # Build embed with this page
+            embed = discord.Embed(title="Your Tracked Items", description=f"Page {new_page} / {total_pages}", color=0x3498db)
+            for db_id, title, curr, target, orig, img in page_items:
+                status = self.generate_status(curr, target, orig)
+                thumb_text = f"📦\n{title[:15]}... (${curr:.2f})"
+                embed.add_field(
+                    name=f"{thumb_text}\nCurrent: ${curr:.2f} | Target: ${target:.2f}",
+                    value=f"**Status**: {status}\n\n[View]",
+                    inline=False
+                )
+                if img:
+                    embed.set_thumbnail(url=img)
+            
+            # Build buttons for new page
+            view = ui.View(timeout=None)
+            btn_list = []
+            if new_page > 1:
+                prev_btn = discord.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{new_page-1}")
+                btn_list.append(prev_btn)
+            
+            next_pg = min(new_page + 1, total_pages)
+            next_btn = discord.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{user_id}_{next_pg}")
+            btn_list.append(next_btn)
+            
+            for btn in btn_list:
+                btn.callback = lambda i, b=btn: self._items_page_switch(i, b.custom_id)
+            
+            for btn in btn_list:
+                view.children.append(btn)
+            
+            embed.set_footer(text=f"Page {new_page}/{total_pages}")
+            await interaction.response.send_message(embed=embed, view=view)
+        except Exception as e:
+            print(f"Error handling page switch: {e}")
+            try:
+                await interaction.response.send_message("Error loading page. Try refreshing.", ephemeral=True)
+            except:
+                pass
 
     @app_commands.command(name="untrack", description="Stop tracking an item by its ID.")
     async def untrack(self, interaction: discord.Interaction, item_id: int):

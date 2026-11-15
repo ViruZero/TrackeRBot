@@ -1,13 +1,21 @@
-# TrackerBot Agent Rules & Fast Aider Pipeline
+# TrackerBot Agent Rules & Autonomous Workflow
 
-## STRICT SPEED & DELEGATION RULES (CRITICAL)
-1. **NEVER use your built-in file editing/patch tools (`edit_file`, `write_file`, `patch`) on `.py` files.** You are ONLY the dispatcher.
-2. **NEVER write or run ad-hoc Python test scripts or multi-turn debugging loops.**
-3. **Pass ONLY the 1 or 2 relevant files to Aider** (model, API key, `map-tokens: 0`, and `show-model-warnings: false` are already set in `.aider.conf.yml`).
+The user will give you plain-English requests. Translate their casual intent into the exact workflow below automatically without asking them for technical flags or filenames.
 
-## Two-Step Aider Workflow
-1. **Step 1 — Draft Spec:** Run a SINGLE terminal command targeting only the relevant file(s):
-   `aider --no-git --message "READ ONLY: In 10 bullet points max, write a spec for: <task>. Do NOT edit files." <target_file.py>`
-2. **Step 2 — Build Code:** When the user says "looks good, build it", run ONLY this single terminal command (do NOT edit files yourself):
-   `aider --yes-always --message "<approved spec>" <target_file.py>`
-3. **Step 3 — Fast Verify:** Run `python -m py_compile <target_file.py>` once and immediately reply to the user in Discord.
+## 1. Codebase Map (Know Where to Look)
+- `bot.py`: Main Discord bot entry point and cog loader.
+- `ai_helper.py`: AI routing logic (`smart_ai_post` with Ollama local -> Groq Cloud fallback).
+- `cogs/digest.py`: Daily Morning Briefing (weather, holidays, Groq daily quotes & jokes).
+- `cogs/tracker.py` (or price tracking cogs): Product price monitoring, scanning schedules, and threshold alerts.
+- `holiday.py` / `weather.py`: Helper modules for holiday info and Philadelphia weather forecasts.
+- `deploy.py`: Syntax verification (`py_compile`), git commit/push to Oracle server, and `trackerbot.service` systemd restart.
+
+## 2. Strict Coding Rules (When User Asks to Change/Fix/Add Code)
+1. **NEVER use your built-in `edit_file`, `write_file`, or `patch` tools on `.py` files.** Always delegate code edits to Aider in the terminal.
+2. **Always run Aider as a SINGLE-LINE terminal command (no newlines inside `--message`):**
+   `aider --yes-always --message "<clear instructions based on user request>" <target_file.py>`
+   *(Note: `.aider.conf.yml` already configures OpenRouter, `edit-format: diff`, and disables warnings).*
+3. **Verify Syntax:** Immediately after Aider finishes, run `python -m py_compile <target_file.py>`.
+
+## 3. Deployment Rules (When User Says "deploy", "push", "send to server", or "make it live")
+- Do not search for deployment scripts—immediately run `python deploy.py` in the terminal and report the git commit hash and `trackerbot.service` status.
