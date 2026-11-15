@@ -6,14 +6,40 @@ import discord
 from discord import app_commands, ui
 from discord.ext import commands
 import sqlite3
-from urllib.parse import urlparse, quote_plus
+from urllib.parse import urlparse, urlunparse, quote_plus, parse_qsl, urlencode
 import asyncio
+import re
+import traceback
 import requests
 from cogs.tracker_image import fetch_page_data, parse_with_ai
 from cogs.items_image import render_items_image
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, 'tracker.db')
+
+def _shorten_url(url):
+    """Return a Discord-API-safe URL of at most 512 characters, or None if it can't be shortened enough."""
+    if not url or not isinstance(url, str):
+        return None
+    if len(url) <= 512:
+        return url
+
+    parsed = urlparse(url)
+
+    # Amazon product URLs: rebuild as https://www.amazon.com/dp/<ASIN>/ keeping only the 'tag' param
+    if 'amazon.' in parsed.netloc.lower():
+        match = re.search(r'/dp/([A-Z0-9]{10})', parsed.path)
+        if match:
+            asin = match.group(1)
+            short = f"https://www.amazon.com/dp/{asin}/"
+            tag = dict(parse_qsl(parsed.query)).get('tag')
+            if tag:
+                short += f"?{urlencode({'tag': tag})}"
+            return short if len(short) <= 512 else None
+
+    # Otherwise strip the query string and fragment
+    stripped = urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+    return stripped if len(stripped) <= 512 else None
 
 class TrackerPrice(commands.Cog):
     def __init__(self, bot):
@@ -109,7 +135,10 @@ class TrackerPrice(commands.Cog):
         # Link buttons, max 5 per action row
         for i, item in enumerate(page_items):
             db_id, url = item[0], item[1]
-            view.add_item(ui.Button(label=f"View #{db_id}", style=discord.ButtonStyle.link, url=url, row=i // 5))
+            short_url = _shorten_url(url)
+            if short_url is None:
+                continue
+            view.add_item(ui.Button(label=f"View #{db_id}", style=discord.ButtonStyle.link, url=short_url, row=i // 5))
 
         pagination_row = (len(page_items) + 4) // 5
         if current_page > 1:
@@ -257,7 +286,8 @@ class TrackerPrice(commands.Cog):
             try:
                 await interaction.followup.send(file=discord.File(out_path), view=view)
             except Exception as e:
-                print(f"Failed to send items image: {e}")
+                traceback.print_exc()
+                print(f"Failed to send items image: {e}", flush=True)
                 try:
                     await interaction.followup.send("Failed to load your tracked items. Please try again.")
                 except Exception:
