@@ -1,15 +1,13 @@
-﻿# Agent Workspace Rules for TrackerBot
-- Local OS is Windows 10 PowerShell (C:\Users\Anthony\Desktop\TrackerBot). Use built-in file tools (read/write/list) instead of Linux bash commands locally.
-- NEVER edit files directly on the remote Oracle server. Edit local files only.
-- Do NOT remove existing functions (fetch_page_data, parse_with_ai, setup) when updating a cog.
-- To view live Oracle logs, run: ssh oracle-bot "sudo journalctl -u trackerbot.service -n 30 --no-pager"
-- To deploy changes, ALWAYS run: python deploy.py
+# TrackerBot Agent Rules & Fast Aider Pipeline
 
-## Multi-Agent Coder Workflow (Hermes Dispatcher -> Aider Gemini Coding Agent)
-When the user asks to "draft a spec" or build/edit code in TrackerBot:
-1. **Step 1 — Draft Spec (Architect Mode):** Do NOT edit `.py` files directly yourself. Run Aider in read-only chat mode to analyze the repo and write a concise spec:
-   `aider --model gemini/gemini-2.5-flash --no-auto-commits --no-git --message "READ ONLY: Draft a concise PRD implementation spec for: <user task>. List Goal, Files to modify, and Step-by-step plan. Do NOT edit any files yet." bot.py ai_helper.py holiday.py deploy.py cogs/*.py`
-   Show the spec to the user in Discord and wait for approval.
-2. **Step 2 — Build Code:** Once the user replies "looks good, build it" (or approves the spec), run Aider to apply the code edits:
-   `aider --model gemini/gemini-2.5-flash --no-auto-commits --yes-always --message "<approved task details>"`
-3. **Step 3 — Verify & Report:** Run `python -m py_compile bot.py cogs/*.py` and `git status -s` to verify clean syntax, then post the summary back to Discord. Only run `python deploy.py` when the user explicitly asks to deploy.
+## STRICT SPEED & DELEGATION RULES (CRITICAL)
+1. **NEVER use your built-in file editing/patch tools (`edit_file`, `write_file`, `patch`) on `.py` files.** You are ONLY the dispatcher.
+2. **NEVER write or run ad-hoc Python test scripts or multi-turn debugging loops.**
+3. **Pass ONLY the 1 or 2 relevant files to Aider** (model, API key, `map-tokens: 0`, and `show-model-warnings: false` are already set in `.aider.conf.yml`).
+
+## Two-Step Aider Workflow
+1. **Step 1 — Draft Spec:** Run a SINGLE terminal command targeting only the relevant file(s):
+   `aider --no-git --message "READ ONLY: In 10 bullet points max, write a spec for: <task>. Do NOT edit files." <target_file.py>`
+2. **Step 2 — Build Code:** When the user says "looks good, build it", run ONLY this single terminal command (do NOT edit files yourself):
+   `aider --yes-always --message "<approved spec>" <target_file.py>`
+3. **Step 3 — Fast Verify:** Run `python -m py_compile <target_file.py>` once and immediately reply to the user in Discord.

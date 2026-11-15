@@ -1,0 +1,176 @@
+warning: in the working copy of 'ai_helper.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/ai_helper.py b/ai_helper.py[m
+[1mindex 7fb8e15..8e0a369 100644[m
+[1m--- a/ai_helper.py[m
+[1m+++ b/ai_helper.py[m
+[36m@@ -36,7 +36,7 @@[m [mdef smart_ai_post(url: str, json: dict = None, timeout: int = 20, **kwargs):[m
+ [m
+     prompt = payload.get("prompt", "")[m
+     options = payload.get("options", {})[m
+[31m-    temperature = options.get("temperature", 0.2)[m
+[32m+[m[32m    temperature = options.get("temperature", 0.85)[m
+ [m
+     groq_payload = {[m
+         "model": "openai/gpt-oss-120b",[m
+[1mdiff --git a/cogs/digest.py b/cogs/digest.py[m
+[1mindex 0e1d303..fdc0971 100644[m
+[1m--- a/cogs/digest.py[m
+[1m+++ b/cogs/digest.py[m
+[36m@@ -3,6 +3,7 @@[m [mimport discord[m
+ from discord import app_commands[m
+ from discord.ext import commands, tasks[m
+ import requests[m
+[32m+[m[32mimport random[m
+ import sqlite3[m
+ import asyncio[m
+ from ai_helper import smart_ai_post[m
+[36m@@ -74,11 +75,21 @@[m [mclass Digest(commands.Cog):[m
+ [m
+         holiday = get_holiday_info(now.date())[m
+         weather_snippet = await asyncio.to_thread(get_philly_weather_forecast)[m
+[32m+[m[32m        THEMES = [[m
+[32m+[m[32m            "coffee", "sunrise", "walk", "rain", "coffee shop", "library", "park",[m
+[32m+[m[32m            "kitchen", "office", "gym", "road trip", "cooking", "baking", "reading",[m
+[32m+[m[32m            "writing", "music", "art", "painting", "gardening", "camping", "hiking",[m
+[32m+[m[32m            "stargazing", "morning pages", "journaling", "meditation", "stretching",[m
+[32m+[m[32m            "tea", "breakfast", "dinner party", "cleaning", "laundry", "commute"[m
+[32m+[m[32m        ][m
+[32m+[m
+[32m+[m[32m        random.seed(now.timestamp())  # reproducible per day[m
+[32m+[m[32m        today_theme = random.choice(THEMES)[m
+ [m
+         quote = holiday["quote"][m
+         if not quote:[m
+             quote_prompt = ([m
+[31m-                "Give me a short, unique, inspiring morning quote (1 sentence). "[m
+[32m+[m[32m                f"Give me a short, unique, inspiring morning quote (1 sentence) about theme '{today_theme}' and date '{date_str}'. "[m
+                 "Return ONLY the quote text, no quotation marks or author needed."[m
+             )[m
+             quote_payload = {"model": "llama3.1", "prompt": quote_prompt, "stream": False}[m
+[36m@@ -88,13 +99,36 @@[m [mclass Digest(commands.Cog):[m
+                 )[m
+                 quote = q_resp.json().get("response", "").strip().strip('"')[m
+             except Exception:[m
+[32m+[m[32m                today_doy = now.timetuple().tm_yday[m
+[32m+[m[32m            if today_doy % 10 == 0:[m
+[32m+[m[32m                quote = f"Inspirational note for {date_str}: The best way to predict the future is to create it with today's theme of '{today_theme}'. 🔥"[m
+[32m+[m[32m            elif today_doy % 10 == 1:[m
+[32m+[m[32m                quote = f"Morning wisdom: Embrace the day's theme — '{today_theme}' — and make every moment count. ✨"[m
+[32m+[m[32m            elif today_doy % 10 == 2:[m
+[32m+[m[32m                quote = f"For {date_str}: Small steps in '{today_theme}' lead to big achievements. Keep going! 💪"[m
+[32m+[m[32m            elif today_doy % 10 == 3:[m
+[32m+[m[32m                quote = f"The theme '{today_theme}' reminds us: Growth happens when we stretch beyond comfort zones. 🌱"[m
+[32m+[m[32m            elif today_doy % 10 == 4:[m
+[32m+[m[32m                quote = f"Morning mantra: Today is a gift, themed '{today_theme}', to make the most of. 🎁"[m
+[32m+[m[32m            elif today_doy % 10 == 5:[m
+[32m+[m[32m                quote = f"Wisdom for {date_str}: Let '{today_theme}' guide your heart and actions today. 💫"[m
+[32m+[m[32m            elif today_doy % 10 == 6:[m
+[32m+[m[32m                quote = f"Daily spark: The theme '{today_theme}' means starting fresh with purpose every morning. 🌅"[m
+[32m+[m[32m            elif today_doy % 10 == 7:[m
+[32m+[m[32m                quote = f"Quote for {date_str}: Focus on '{today_theme}', find joy in the simple moments. ☕"[m
+[32m+[m[32m            elif today_doy % 10 == 8:[m
+[32m+[m[32m                quote = f"Inspiration: Today's theme '{today_theme}' shows us beauty is everywhere if we look. 🎨"[m
+[32m+[m[32m            elif today_doy % 10 == 9:[m
+[32m+[m[32m                quote = f"Motivation for {date_str}: Let '{today_theme}' energize your day with fresh perspective. ⚡"[m
+[32m+[m[32m            else:[m
+                 quote = "Rise and shine; today is yours to conquer."[m
+ [m
+         joke = holiday["joke"][m
+         if not joke:[m
+             joke_prompt = ([m
+[31m-                "Tell me a short, clever, funny everyday joke about anything "[m
+[31m-                "(daily life, animals, food, puns, or random topics—do NOT make it about programming or tech)."[m
+[32m+[m[32m                f"Tell me a short, clever, funny everyday joke about theme '{today_theme}' on date '{date_str}'. "[m
+[32m+[m[32m                "The joke must NOT be about programming or tech. "[m
+[32m+[m[32m                "Format it exactly as: 'Setup? ||Punchline||' where only the punchline is wrapped in double pipe spoiler markers."[m
+             )[m
+             joke_payload = {"model": "llama3.1", "prompt": joke_prompt, "stream": False}[m
+             try:[m
+[36m@@ -103,57 +137,37 @@[m [mclass Digest(commands.Cog):[m
+                 )[m
+                 joke = j_resp.json().get("response", "").strip()[m
+             except Exception:[m
+[31m-                joke = "Why don't scientists trust atoms? Because they make up everything!"[m
+[31m-[m
+[31m-        # Split joke into setup and answer; wrap only the punchline in spoiler tags[m
+[31m-        joke_setup, joke_answer = "", ""[m
+[31m-        try:[m
+[31m-            # Try splitting at last '?' then stripping trailing punctuation[m
+[31m-            if "?" in joke:[m
+[31m-                question_parts = joke.rsplit("?", 1)[m
+[31m-                joke_setup = question_parts[0].strip()[m
+[31m-                remainder = question_parts[1].strip()[m
+[31m-                if len(remainder.split()) <= 3 or not remainder.endswith("."):[m
+[31m-                    joke_answer = remainder[m
+[31m-            elif "because" in joke.lower():[m
+[31m-                # Only split if there's meaningful content before AND after 'because'[m
+[31m-                # Avoid matching phrases like "Because I like it" or similar standalone answers[m
+[31m-                words = joke.lower().split()[m
+[31m-                because_idx = next((i for i, w in enumerate(words) if w == "because"), -1)[m
+[31m-            [m
+[31m-                if because_idx > 0 and len(words) > because_idx + 2:  # Something before AND after 'because'[m
+[31m-                    parts = joke.lower().rsplit(" because", 1)[m
+[31m-                    if len(parts) > 0:[m
+[31m-                        joke_setup = parts[0].strip()[m
+[31m-                    else:[m
+[31m-                        joke_setup = joke.strip()[m
+[31m-                    if len(parts) > 1:[m
+[31m-                        joke_answer = parts[1].strip()[m
+[31m-                    else:[m
+[31m-                        joke_answer = ""[m
+[31m-                else:[m
+[31m-                    # Standalone 'because' phrase - treat as full spoiler[m
+[31m-                    joke_answer = joke[m
+[31m-            elif "answer:" in joke.lower():[m
+[31m-                parts = joke.lower().rsplit(" answer:", 1)[m
+[31m-                if len(parts) > 0:[m
+[31m-                    joke_setup = parts[0].strip()[m
+[31m-                else:[m
+[31m-                    joke_setup = joke.strip()[m
+[31m-                if len(parts) > 1:[m
+[31m-                    joke_answer = parts[1].strip()[m
+[31m-                else:[m
+[31m-                    joke_answer = ""[m
+[32m+[m[32m                today_doy = now.timetuple().tm_yday[m
+[32m+[m[32m            if today_doy % 7 == 0:[m
+[32m+[m[32m                joke = f"Why don't {today_theme} like to share? Because then it's not funny at all! 🤣"[m
+[32m+[m[32m            elif today_doy % 7 == 1:[m
+[32m+[m[32m                joke = f"What do you call a {today_theme} that tells secrets? A gossip {today_theme}! 😏"[m
+[32m+[m[32m            elif today_doy % 7 == 2:[m
+[32m+[m[32m                joke = f"A {today_theme}'s favorite hobby? Talking to itself in the mirror. 💬"[m
+[32m+[m[32m            elif today_doy % 7 == 3:[m
+[32m+[m[32m                joke = f"Why did the {today_theme} break up with algebra? It couldn't solve its own relationship! 🧮"[m
+[32m+[m[32m            elif today_doy % 7 == 4:[m
+[32m+[m[32m                joke = f"The {today_theme}'s favorite music is silence — because noise ruins the vibes. 🎵"[m
+[32m+[m[32m            elif today_doy % 7 == 5:[m
+[32m+[m[32m                joke = f"What's a {today_theme}'s dream job? Juggling itself and laughing! 🤹"[m
+[32m+[m[32m            else:[m
+[32m+[m[32m                joke = f"Why did the {today_theme} walk into a library? To get some good stories and quiet fun! 📚"[m
+[32m+[m
+[32m+[m[32m        # Parse the joke - extract only the punchline from ||...|| tags as requested[m
+[32m+[m[32m        import re[m
+[32m+[m[32m        joke_match = re.search(r'\|\|([^||]+)\|\|', joke)[m
+[32m+[m[32m        if joke_match:[m
+[32m+[m[32m            joke_answer = joke_match.group(1).strip()[m
+[32m+[m[32m            # Remove surrounding punctuation like ? and . from setup[m
+[32m+[m[32m            parts = joke.rstrip().split("?", 1)[m
+[32m+[m[32m            if len(parts) == 2:[m
+[32m+[m[32m                joke_setup = (parts[0] + "?").strip()[m
+             else:[m
+[31m-                # Fallback: wrap entire joke in spoiler if no clear split found[m
+[31m-                joke_answer = joke[m
+[31m-[m
+[31m-            # If answer is empty after heuristic splitting, use whole joke as answer[m
+[31m-            if not joke_answer.strip():[m
+[31m-                joke_answer = joke[m
+[31m-        except Exception:[m
+[31m-            # Catch-all fallback on parsing error[m
+[31m-            joke_answer = joke[m
+[32m+[m[32m                joke_setup = joke.strip()[m
+[32m+[m[32m        else:[m
+[32m+[m[32m            # Fallback if no spoiler tags found - use full response as answer[m
+[32m+[m[32m            joke_answer = joke.strip().rstrip('?.!')[m
+[32m+[m[32m            joke_setup = joke.rstrip('?.!').split('?')[0].strip() + "?"[m
+ [m
+         header_embed = discord.Embed([m
+             title=f"{holiday['emoji']} {holiday['title_prefix']} — {date_str}",[m

@@ -3,6 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 import requests
+import random
 import sqlite3
 import asyncio
 from ai_helper import smart_ai_post
@@ -74,11 +75,21 @@ class Digest(commands.Cog):
 
         holiday = get_holiday_info(now.date())
         weather_snippet = await asyncio.to_thread(get_philly_weather_forecast)
+        THEMES = [
+            "coffee", "sunrise", "walk", "rain", "coffee shop", "library", "park",
+            "kitchen", "office", "gym", "road trip", "cooking", "baking", "reading",
+            "writing", "music", "art", "painting", "gardening", "camping", "hiking",
+            "stargazing", "morning pages", "journaling", "meditation", "stretching",
+            "tea", "breakfast", "dinner party", "cleaning", "laundry", "commute"
+        ]
+
+        random.seed(now.timestamp())  # reproducible per day
+        today_theme = random.choice(THEMES)
 
         quote = holiday["quote"]
         if not quote:
             quote_prompt = (
-                "Give me a short, unique, inspiring morning quote (1 sentence). "
+                f"Give me a short, unique, inspiring morning quote (1 sentence) about theme '{today_theme}' and date '{date_str}'. "
                 "Return ONLY the quote text, no quotation marks or author needed."
             )
             quote_payload = {"model": "llama3.1", "prompt": quote_prompt, "stream": False}
@@ -88,13 +99,36 @@ class Digest(commands.Cog):
                 )
                 quote = q_resp.json().get("response", "").strip().strip('"')
             except Exception:
-                quote = "Rise and shine; today is yours to conquer."
+                today_doy = now.timetuple().tm_yday
+                if today_doy % 10 == 0:
+                    quote = f"Inspirational note for {date_str}: The best way to predict the future is to create it with today's theme of '{today_theme}'. 🔥"
+                elif today_doy % 10 == 1:
+                    quote = f"Morning wisdom: Embrace the day's theme — '{today_theme}' — and make every moment count. ✨"
+                elif today_doy % 10 == 2:
+                    quote = f"For {date_str}: Small steps in '{today_theme}' lead to big achievements. Keep going! 💪"
+                elif today_doy % 10 == 3:
+                    quote = f"The theme '{today_theme}' reminds us: Growth happens when we stretch beyond comfort zones. 🌱"
+                elif today_doy % 10 == 4:
+                    quote = f"Morning mantra: Today is a gift, themed '{today_theme}', to make the most of. 🎁"
+                elif today_doy % 10 == 5:
+                    quote = f"Wisdom for {date_str}: Let '{today_theme}' guide your heart and actions today. 💫"
+                elif today_doy % 10 == 6:
+                    quote = f"Daily spark: The theme '{today_theme}' means starting fresh with purpose every morning. 🌅"
+                elif today_doy % 10 == 7:
+                    quote = f"Quote for {date_str}: Focus on '{today_theme}', find joy in the simple moments. ☕"
+                elif today_doy % 10 == 8:
+                    quote = f"Inspiration: Today's theme '{today_theme}' shows us beauty is everywhere if we look. 🎨"
+                elif today_doy % 10 == 9:
+                    quote = f"Motivation for {date_str}: Let '{today_theme}' energize your day with fresh perspective. ⚡"
+                else:
+                    quote = "Rise and shine; today is yours to conquer."
 
         joke = holiday["joke"]
         if not joke:
             joke_prompt = (
-                "Tell me a short, clever, funny everyday joke about anything "
-                "(daily life, animals, food, puns, or random topics—do NOT make it about programming or tech)."
+                f"Tell me a short, clever, funny everyday joke about theme '{today_theme}' on date '{date_str}'. "
+                "The joke must NOT be about programming or tech. "
+                "Format it exactly as: 'Setup? ||Punchline||' where only the punchline is wrapped in double pipe spoiler markers."
             )
             joke_payload = {"model": "llama3.1", "prompt": joke_prompt, "stream": False}
             try:
@@ -103,57 +137,32 @@ class Digest(commands.Cog):
                 )
                 joke = j_resp.json().get("response", "").strip()
             except Exception:
-                joke = "Why don't scientists trust atoms? Because they make up everything!"
+                today_doy = now.timetuple().tm_yday
+                if today_doy % 7 == 0:
+                    joke = f"Why don't {today_theme} like to share? ||Because then it's not funny at all! 🤣||"
+                elif today_doy % 7 == 1:
+                    joke = f"What do you call a {today_theme} that tells secrets? ||A gossip {today_theme}! 😏||"
+                elif today_doy % 7 == 2:
+                    joke = f"A {today_theme}'s favorite hobby? ||Talking to itself in the mirror. 💬||"
+                elif today_doy % 7 == 3:
+                    joke = f"Why did the {today_theme} break up with algebra? ||It couldn't solve its own relationship! 🧮||"
+                elif today_doy % 7 == 4:
+                    joke = f"The {today_theme}'s favorite music is silence? ||Because noise ruins the vibes. 🎵||"
+                elif today_doy % 7 == 5:
+                    joke = f"What's a {today_theme}'s dream job? ||Juggling itself and laughing! 🤹||"
+                else:
+                    joke = f"Why did the {today_theme} walk into a library? ||To get some good stories and quiet fun! 📚||"
 
-        # Split joke into setup and answer; wrap only the punchline in spoiler tags
-        joke_setup, joke_answer = "", ""
-        try:
-            # Try splitting at last '?' then stripping trailing punctuation
-            if "?" in joke:
-                question_parts = joke.rsplit("?", 1)
-                joke_setup = question_parts[0].strip()
-                remainder = question_parts[1].strip()
-                if len(remainder.split()) <= 3 or not remainder.endswith("."):
-                    joke_answer = remainder
-            elif "because" in joke.lower():
-                # Only split if there's meaningful content before AND after 'because'
-                # Avoid matching phrases like "Because I like it" or similar standalone answers
-                words = joke.lower().split()
-                because_idx = next((i for i, w in enumerate(words) if w == "because"), -1)
-            
-                if because_idx > 0 and len(words) > because_idx + 2:  # Something before AND after 'because'
-                    parts = joke.lower().rsplit(" because", 1)
-                    if len(parts) > 0:
-                        joke_setup = parts[0].strip()
-                    else:
-                        joke_setup = joke.strip()
-                    if len(parts) > 1:
-                        joke_answer = parts[1].strip()
-                    else:
-                        joke_answer = ""
-                else:
-                    # Standalone 'because' phrase - treat as full spoiler
-                    joke_answer = joke
-            elif "answer:" in joke.lower():
-                parts = joke.lower().rsplit(" answer:", 1)
-                if len(parts) > 0:
-                    joke_setup = parts[0].strip()
-                else:
-                    joke_setup = joke.strip()
-                if len(parts) > 1:
-                    joke_answer = parts[1].strip()
-                else:
-                    joke_answer = ""
-            else:
-                # Fallback: wrap entire joke in spoiler if no clear split found
-                joke_answer = joke
-
-            # If answer is empty after heuristic splitting, use whole joke as answer
-            if not joke_answer.strip():
-                joke_answer = joke
-        except Exception:
-            # Catch-all fallback on parsing error
-            joke_answer = joke
+        # Parse the joke - extract only the punchline from ||...|| tags as requested
+        import re
+        joke_match = re.search(r'\|\|([^|]+)\|\|', joke)
+        if joke_match:
+            joke_answer = joke_match.group(1).strip()
+            joke_setup = joke[:joke_match.start()].strip()
+        else:
+            # Fallback if no spoiler tags found - use full response as answer
+            joke_answer = joke.strip().rstrip('?.!')
+            joke_setup = joke.rstrip('?.!').split('?')[0].strip() + "?"
 
         header_embed = discord.Embed(
             title=f"{holiday['emoji']} {holiday['title_prefix']} — {date_str}",

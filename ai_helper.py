@@ -36,7 +36,7 @@ def smart_ai_post(url: str, json: dict = None, timeout: int = 20, **kwargs):
 
     prompt = payload.get("prompt", "")
     options = payload.get("options", {})
-    temperature = options.get("temperature", 0.2)
+    temperature = options.get("temperature", 0.85)
 
     groq_payload = {
         "model": "openai/gpt-oss-120b",
