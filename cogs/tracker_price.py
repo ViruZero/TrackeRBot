@@ -135,13 +135,18 @@ class TrackerPrice(commands.Cog):
             db_id, url, title, curr, target, orig, img = item
             status = self.generate_status(curr, target, orig)
             display_title = title if len(title) <= 90 else title[:87] + "..."
-            text = f"**#{db_id} - {display_title}**\n${curr:.2f}  |  Target ${target:.2f}  |  {status}"
-            short_url = _shorten_url(url)
-            if short_url is not None:
-                accessory = ui.Button(label="View", style=discord.ButtonStyle.link, url=short_url)
+            text = f"**#{db_id} - {display_title}**\n${curr:.2f}  |  Target ${target:.2f}"
+            if self._valid_image_url(img):
+                text += f"  •  [View]({url})  |  {status}"
+                accessory = ui.Thumbnail(media=img)
             else:
-                accessory = ui.Button(label="View", style=discord.ButtonStyle.secondary, custom_id=f"items_goto_{user_id}_{db_id}")
-                accessory.callback = lambda interaction, full_url=url: interaction.response.send_message(full_url, ephemeral=True)
+                text += f"  |  {status}"
+                short_url = _shorten_url(url)
+                if short_url is not None:
+                    accessory = ui.Button(label="View", style=discord.ButtonStyle.link, url=short_url)
+                else:
+                    accessory = ui.Button(label="View", style=discord.ButtonStyle.secondary, custom_id=f"items_goto_{user_id}_{db_id}")
+                    accessory.callback = lambda interaction, full_url=url: interaction.response.send_message(full_url, ephemeral=True)
             container.add_item(ui.Section(ui.TextDisplay(text), accessory=accessory))
 
         prev_btn = ui.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{current_page - 1}", disabled=(current_page == 1))
