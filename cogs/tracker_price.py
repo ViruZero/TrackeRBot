@@ -1,5 +1,7 @@
 from ai_helper import smart_ai_post
 import os
+import tempfile
+import uuid
 import discord
 from discord import app_commands, ui
 from discord.ext import commands
@@ -10,6 +12,7 @@ import re
 import traceback
 import requests
 from cogs.tracker_image import fetch_page_data, parse_with_ai
+from cogs.items_banner import render_banner, THEME_LABELS
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, 'tracker.db')
@@ -44,6 +47,10 @@ class TrackerPrice(commands.Cog):
         self.conn = sqlite3.connect(DB_PATH)
         self.c = self.conn.cursor()
         self.setup_database()
+        self.c.execute('''CREATE TABLE IF NOT EXISTS user_banners
+                         (user_id INTEGER PRIMARY KEY,
+                          theme TEXT NOT NULL DEFAULT 'pokeball')''')
+        self.conn.commit()
 
     def setup_database(self):
         # Create table with composite primary key (id, user_id) so each user has their own 1, 2, 3... IDs
@@ -86,6 +93,33 @@ class TrackerPrice(commands.Cog):
     def cog_unload(self):
         self.conn.close()
 
+    def _resolve_banner(self, user_id, fallback_name):
+        self.c.execute("SELECT theme FROM user_banners WHERE user_id=?", (user_id,))
+        row = self.c.fetchone()
+        theme = row[0] if row else 'pokeball'
+
+        self.c.execute("SELECT prefix FROM users WHERE user_id=?", (user_id,))
+        row = self.c.fetchone()
+        prefix = row[0] if row else None
+        if prefix:
+            if re.match(r'^[a-z]', prefix):
+                name = prefix[0].upper() + prefix[1:]
+            else:
+                name = prefix
+        else:
+            name = fallback_name
+        return (theme, name)
+
+    def _make_banner_file(self, user_id, fallback_name):
+        try:
+            theme, name = self._resolve_banner(user_id, fallback_name)
+            out_path = os.path.join(tempfile.gettempdir(), f'items_banner_{uuid.uuid4().hex}.png')
+            render_banner(theme, name, out_path)
+            return discord.File(out_path, filename='items_banner.png'), out_path
+        except Exception:
+            traceback.print_exc()
+            return None, None
+
     async def generate_comparison_links(self, full_title: str):
         prompt = "Take this messy e-commerce product title and extract just the core product name or model. Make it 4 words or less. Return ONLY the short name, nothing else.\n\nTitle: " + full_title
         payload = {"model": "llama3.1", "prompt": prompt, "stream": False}
@@ -125,11 +159,12 @@ class TrackerPrice(commands.Cog):
             await self._items_page_switch(interaction, custom_id)
         return callback
 
-    def _build_items_layout(self, user_id, current_page, page_items, total_pages):
+    def _build_items_layout(self, user_id, current_page, page_items, total_pages, with_banner: bool = True):
         """Build a Components V2 layout view for the items list."""
         lv = ui.LayoutView(timeout=None)
         container = ui.Container(accent_color=0x2b2d31)
-        container.add_item(ui.TextDisplay(f"## Your Tracked Items\nPage {current_page} / {total_pages}"))
+        if with_banner:
+            container.add_item(ui.MediaGallery(ui.MediaGalleryItem(media='attachment://items_banner.png')))
 
         for item in page_items:
             db_id, url, title, curr, target, orig, img = item
@@ -269,10 +304,14 @@ class TrackerPrice(commands.Cog):
             end_idx = start_idx + 10
             page_items = items[start_idx:end_idx]
             
-            layout = self._build_items_layout(interaction.user.id, current_page, page_items, total_pages)
+            banner_file, _banner_path = self._make_banner_file(interaction.user.id, interaction.user.display_name)
+            layout = self._build_items_layout(interaction.user.id, current_page, page_items, total_pages, with_banner=banner_file is not None)
 
             try:
-                await interaction.followup.send(view=layout)
+                if banner_file is not None:
+                    await interaction.followup.send(view=layout, file=banner_file)
+                else:
+                    await interaction.followup.send(view=layout)
             except Exception as e:
                 traceback.print_exc()
                 print(f"Failed to send items layout: {e}", flush=True)
@@ -311,7 +350,7 @@ class TrackerPrice(commands.Cog):
             end_idx = start_idx + 10
             page_items = all_items[start_idx:end_idx]
 
-            layout = self._build_items_layout(user_id, new_page, page_items, total_pages)
+            layout = self._build_items_layout(user_id, new_page, page_items, total_pages, with_banner=True)
             try:
                 await interaction.response.edit_message(view=layout)
             except Exception:
@@ -335,6 +374,18 @@ class TrackerPrice(commands.Cog):
             
         self.conn.commit()
         await interaction.response.send_message(f"Item ID {item_id} removed from tracker.")
+
+    @app_commands.command(name="theme", description="Pick the banner theme shown at the top of /items.")
+    @app_commands.choices(choice=[app_commands.Choice(name=label, value=key) for key, label in THEME_LABELS.items()])
+    async def theme(self, interaction: discord.Interaction, choice: app_commands.Choice[str]):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            self.c.execute("INSERT OR REPLACE INTO user_banners (user_id, theme) VALUES (?, ?)", (interaction.user.id, choice.value))
+            self.conn.commit()
+            await interaction.followup.send(f"Banner theme set to {choice.name}. Run /items to see it!", ephemeral=True)
+        except Exception:
+            traceback.print_exc()
+            await interaction.followup.send("Failed to set banner theme. Please try again.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(TrackerPrice(bot))

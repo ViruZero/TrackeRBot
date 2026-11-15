@@ -1,0 +1,4 @@
+# Discord bot runtime dependencies.
+# Installed in the server venv at /home/ubuntu/TrackerBot/venv/bin/pip
+discord.py>=2.3
+Pillow>=10.0
