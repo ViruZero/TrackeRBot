@@ -25,8 +25,9 @@ def _vertical_gradient(top_rgb, bottom_rgb):
 
 
 def _outline_text(draw, xy, text, font, fill, outline, width=3):
-    "Draw text with an 8-direction outline stroke, then the center fill."
+    "Draw a drop shadow, an 8-direction outline stroke, then the center fill."
     x, y = xy
+    draw.text((x + 2, y + 2), text, font=font, fill=(0, 0, 0), anchor='mm')
     for dx in (-width, 0, width):
         for dy in (-width, 0, width):
             if dx == 0 and dy == 0:
@@ -73,15 +74,18 @@ def font(size):
         return ImageFont.truetype('C:/Windows/Fonts/arialbd.ttf', size)
     except OSError:
         try:
-            return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', size)
+            return ImageFont.truetype('/usr/share/fonts/truetype/freefont/FreeSansBold.ttf', size)
         except OSError:
-            return ImageFont.load_default()
+            try:
+                return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', size)
+            except OSError:
+                return ImageFont.load_default(size=size)
 
 
 def _pokeball(img, draw):
     "Pokeball Red: red gradient, black band, dark top panel with tiny status dots."
-    line_y = int(H * 0.62)
-    draw.rectangle([0, line_y - 6, W, line_y + 6], fill=(17, 17, 17))
+    line_y = int(H * 0.83)
+    draw.rectangle([0, line_y - 5, W, line_y + 5], fill=(17, 17, 17))
     draw.rounded_rectangle([40, 8, W - 40, 54], radius=12, fill=(31, 41, 55))
     cluster = [
         (70, 31, (74, 222, 128)),
@@ -192,5 +196,5 @@ def render_banner(theme, name, out_path):
     draw = ImageDraw.Draw(img)
     THEMES[theme](img, draw)
     fill, outline = THEME_TEXT_COLORS[theme]
-    _outline_text(draw, (W // 2, H // 2 + 10), name + "'s Shopping List", font(64), fill, outline)
+    _outline_text(draw, (W // 2, H // 2 + 12), name + "'s Shopping List", font(46), fill, outline)
     img.save(out_path)
