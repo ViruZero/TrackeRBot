@@ -7,7 +7,6 @@ import sqlite3
 from urllib.parse import urlparse, quote_plus
 import asyncio
 import requests
-import base64
 from cogs.tracker_image import fetch_page_data, parse_with_ai
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -81,6 +80,39 @@ class TrackerPrice(commands.Cog):
         else:
             return "Over Target 🔴"
 
+    @staticmethod
+    def _valid_image_url(url):
+        """Return True only for http(s) URLs ending in a Discord-supported image extension."""
+        if not url or not isinstance(url, str):
+            return False
+        try:
+            parsed = urlparse(url.strip())
+        except Exception:
+            return False
+        if parsed.scheme not in ("http", "https"):
+            return False
+        return parsed.path.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+
+    def _make_page_callback(self, custom_id):
+        """Create a properly bound callback for a pagination button."""
+        async def callback(interaction: discord.Interaction):
+            await self._items_page_switch(interaction, custom_id)
+        return callback
+
+    def _build_items_view(self, user_id, current_page, total_pages):
+        """Build the pagination view with correctly bound button callbacks."""
+        view = ui.View(timeout=None)
+        if current_page > 1:
+            prev_btn = discord.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{current_page - 1}")
+            prev_btn.callback = self._make_page_callback(prev_btn.custom_id)
+            view.add_item(prev_btn)
+
+        next_page = min(current_page + 1, total_pages)
+        next_btn = discord.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{user_id}_{next_page}")
+        next_btn.callback = self._make_page_callback(next_btn.custom_id)
+        view.add_item(next_btn)
+        return view
+
     def build_item_embed(self, item_id, url, title, target_price, original_price, current_price, image_url, comparison_links):
         domain = urlparse(url).netloc.replace("www.", "")
         status = self.generate_status(current_price, target_price, original_price)
@@ -94,7 +126,7 @@ class TrackerPrice(commands.Cog):
         embed.add_field(name="\u200b", value="\u200b", inline=True) 
         embed.add_field(name="Compare Prices", value=comparison_links, inline=False)
         
-        if image_url:
+        if self._valid_image_url(image_url):
             embed.set_thumbnail(url=image_url)
             
         embed.set_footer(text=f"Tracker Bot v3.0 | Item ID: {item_id}")
@@ -166,7 +198,14 @@ class TrackerPrice(commands.Cog):
             db_id, url, title, target, orig, curr, img = item
             comparison_links = await self.generate_comparison_links(title)
             embed = self.build_item_embed(db_id, url, title, target, orig, curr, img, comparison_links)
-            await interaction.followup.send(embed=embed)
+            try:
+                await interaction.followup.send(embed=embed)
+            except Exception as e:
+                print(f"Failed to send item embed: {e}")
+                try:
+                    await interaction.followup.send("Failed to display item. Please try again.")
+                except Exception:
+                    pass
             
         else:
             self.c.execute("SELECT id, title, current_price, target_price, original_price, image_url FROM items WHERE user_id=? ORDER BY id ASC", (interaction.user.id,))
@@ -185,20 +224,15 @@ class TrackerPrice(commands.Cog):
             page_items = items[start_idx:end_idx]
             
             embed = discord.Embed(title="Your Tracked Items", description=f"Page {current_page} / {total_pages}", color=0x3498db)
+            thumbnail_set = False
             for db_id, title, curr, target, orig, img in page_items:
                 status = self.generate_status(curr, target, orig)
                 
-                # Use product image if available, otherwise use placeholder black square with N/A
-                if img:
+                # Only set a thumbnail for valid PNG/JPG/WEBP URLs; skip otherwise
+                if not thumbnail_set and self._valid_image_url(img):
                     embed.set_thumbnail(url=img)
-                else:
-                    # Create a black square SVG with N/A text for missing images
-                    svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
-                        <rect width="100%" height="100%" fill="#000000"/>
-                        <text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">N/A</text>
-                    </svg>'''
-                    thumb_placeholder = f"data:image/svg+xml;base64,{base64.b64encode(svg_data.encode()).decode()}"
-                    embed.set_thumbnail(url=thumb_placeholder)
+                    thumbnail_set = True
+                
                 # Add product info fields
                 embed.add_field(
                     name=f"{title[:15]}... (${curr:.2f})",
@@ -207,104 +241,80 @@ class TrackerPrice(commands.Cog):
                 )
             embed.set_footer(text=f"Page {current_page}/{total_pages}")
             
-            # Add interactive buttons for navigation - create view with components
-            buttons = []
-            if current_page > 1:
-                prev_button = discord.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{interaction.user.id}_{current_page-1}")
-                buttons.append(prev_button)
+            view = self._build_items_view(interaction.user.id, current_page, total_pages)
             
-            next_page = min(current_page + 1, total_pages)
-            next_button = discord.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{interaction.user.id}_{next_page}")
-            buttons.append(next_button)
-            
-            # Create view with the embed and buttons - manual construction
-            view = ui.View(timeout=None)
-            for btn in buttons:
-                view.children.append(btn)
-            
-            # Add click callbacks if there are buttons
-            if len(buttons) > 0:
-                for btn in buttons:
-                    btn.callback = lambda interaction, btn=btn: self._items_page_switch(interaction, btn.custom_id)
-            
-            await interaction.followup.send(embed=embed, view=view)
+            try:
+                await interaction.followup.send(embed=embed, view=view)
+            except Exception as e:
+                print(f"Failed to send items embed: {e}")
+                try:
+                    await interaction.followup.send("Failed to load your tracked items. Please try again.")
+                except Exception:
+                    pass
     
     async def _items_page_switch(self, interaction, custom_id):
         """Handle button clicks to switch pages"""
         try:
-            user_id = int(custom_id.split("_")[2])
-            direction = custom_id.split("_")[-1]
-            
+            # custom_id format: items_<direction>_<user_id>_<target_page>
+            parts = custom_id.split("_")
+            if len(parts) != 4:
+                raise ValueError(f"Malformed custom_id: {custom_id}")
+            user_id = int(parts[2])
+            new_page = int(parts[3])
+
             # Verify the user owns this view and get their items
-            self.c.execute("SELECT * FROM items WHERE user_id=? ORDER BY id ASC", (user_id,))
+            if interaction.user.id != user_id:
+                await interaction.response.send_message("This isn't your tracker view.", ephemeral=True)
+                return
+
+            self.c.execute("SELECT id, title, current_price, target_price, original_price, image_url FROM items WHERE user_id=? ORDER BY id ASC", (user_id,))
             all_items = self.c.fetchall()
             if not all_items:
                 await interaction.response.send_message("No tracked items found.", ephemeral=True)
                 return
-            
-            # Determine new page
+
+            # Clamp the requested page (the button already encodes the target page)
             total_pages = max(1, (len(all_items) + 9) // 10)
-            if direction == "prev":
-                current_page_token = int(custom_id.split("_")[3])
-                new_page = max(1, current_page_token - 1)
-            else:  # next
-                current_page_token = int(custom_id.split("_")[3])
-                new_page = min(total_pages, current_page_token + 1)
-            
+            new_page = max(1, min(new_page, total_pages))
+
             # Get page slice
             start_idx = (new_page - 1) * 10
             end_idx = start_idx + 10
             page_items = all_items[start_idx:end_idx]
-            
+
             # Build embed with this page
             embed = discord.Embed(title="Your Tracked Items", description=f"Page {new_page} / {total_pages}", color=0x3498db)
+            thumbnail_set = False
             for db_id, title, curr, target, orig, img in page_items:
                 status = self.generate_status(curr, target, orig)
-                
-                # Use product image if available, otherwise use placeholder black square with N/A
-                if img:
+
+                # Only set a thumbnail for valid PNG/JPG/WEBP URLs; skip otherwise
+                if not thumbnail_set and self._valid_image_url(img):
                     embed.set_thumbnail(url=img)
-                else:
-                    # Create a black square SVG with N/A text for missing images
-                    svg_data = '''<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128">
-                        <rect width="100%" height="100%" fill="#000000"/>
-                        <text x="50%" y="50%" font-family="Arial" font-size="24" fill="white" text-anchor="middle" dominant-baseline="middle">N/A</text>
-                    </svg>'''
-                    thumb_placeholder = f"data:image/svg+xml;base64,{base64.b64encode(svg_data.encode()).decode()}"
-                    embed.set_thumbnail(url=thumb_placeholder)
-                
+                    thumbnail_set = True
+
                 # Add product info fields
                 embed.add_field(
                     name=f"{title[:15]}... (${curr:.2f})",
                     value=f"**Status**: {status}\n\n[View]",
                     inline=False
                 )
-            
-            # Build buttons for new page
-            view = ui.View(timeout=None)
-            btn_list = []
-            if new_page > 1:
-                prev_btn = discord.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{new_page-1}")
-                btn_list.append(prev_btn)
-            
-            next_pg = min(new_page + 1, total_pages)
-            next_btn = discord.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{user_id}_{next_pg}")
-            btn_list.append(next_btn)
-            
-            for btn in btn_list:
-                btn.callback = lambda i, b=btn: self._items_page_switch(i, b.custom_id)
-            
-            for btn in btn_list:
-                view.children.append(btn)
-            
+
             embed.set_footer(text=f"Page {new_page}/{total_pages}")
-            await interaction.response.send_message(embed=embed, view=view)
+            view = self._build_items_view(user_id, new_page, total_pages)
+            try:
+                await interaction.response.send_message(embed=embed, view=view)
+            except Exception:
+                await interaction.followup.send(embed=embed, view=view)
         except Exception as e:
             print(f"Error handling page switch: {e}")
             try:
                 await interaction.response.send_message("Error loading page. Try refreshing.", ephemeral=True)
-            except:
-                pass
+            except Exception:
+                try:
+                    await interaction.followup.send("Error loading page. Try refreshing.", ephemeral=True)
+                except Exception:
+                    pass
 
     @app_commands.command(name="untrack", description="Stop tracking an item by its ID.")
     async def untrack(self, interaction: discord.Interaction, item_id: int):
