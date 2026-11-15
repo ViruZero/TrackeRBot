@@ -1,7 +1,7 @@
 from ai_helper import smart_ai_post
 import os
 import discord
-from discord import app_commands, ui, Button, ButtonStyle
+from discord import app_commands, ui
 from discord.ext import commands
 import sqlite3
 from urllib.parse import urlparse, quote_plus
@@ -103,12 +103,12 @@ class TrackerPrice(commands.Cog):
         """Build the pagination view with correctly bound button callbacks."""
         view = ui.View(timeout=None)
         if current_page > 1:
-            prev_btn = Button(label="Prev", style=ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{current_page - 1}")
+            prev_btn = ui.Button(label="Prev", style=discord.ButtonStyle.blurple, custom_id=f"items_prev_{user_id}_{current_page - 1}")
             prev_btn.callback = self._make_page_callback(prev_btn.custom_id)
             view.add_item(prev_btn)
 
         next_page = min(current_page + 1, total_pages)
-        next_btn = Button(label="Next", style=ButtonStyle.primary, custom_id=f"items_next_{user_id}_{next_page}")
+        next_btn = ui.Button(label="Next", style=discord.ButtonStyle.primary, custom_id=f"items_next_{user_id}_{next_page}")
         next_btn.callback = self._make_page_callback(next_btn.custom_id)
         view.add_item(next_btn)
         return view
