@@ -98,11 +98,12 @@ def _outline_text(draw, xy, text, fnt, fill, outline, width=4):
     draw.text((x, y), text, font=fnt, fill=fill, anchor='mm')
 
 
-def _title(img, text, theme):
-    """Centered outlined white title."""
+def _title(img, text, theme, fill=None):
+    """Centered outlined title. If fill is None, pick it from the theme."""
     draw = ImageDraw.Draw(img)
     text = text + "'s Shopping List"
-    fill = (255, 255, 255, 255) if theme in ('moon', 'pokeball') else (28, 32, 64, 255)
+    if fill is None:
+        fill = (255, 255, 255, 255) if theme in ('moon', 'pokeball') else (28, 32, 64, 255)
     outline = OUTLINES.get(theme, (15, 15, 20, 255))
     fnt = font(46)
     cx, cy = W // 2, H // 2 + 2
@@ -317,7 +318,12 @@ def render_banner(theme, name, out_path):
 def render_custom_banner(png_bytes, name, out_path):
     """Cover-crop arbitrary image bytes (https image) and overlay the title."""
     img = _cover_crop(Image.open(BytesIO(png_bytes)))
+    region = img.crop((W//4, H//4, 3*W//4, 3*H//4))
+    small = region.resize((8,8)).convert('RGB')
+    pixels = list(small.getdata())
+    lum = sum(0.2126 * r + 0.7152 * g + 0.0722 * b for r, g, b in pixels) / 64
+    fill = (255, 255, 255, 255) if lum < 128 else (28, 32, 64, 255)
     _inner_border(img)
-    _title(img, name, theme=None)
+    _title(img, name, theme=None, fill=fill)
     img = _apply_rounded(img)
     img.save(out_path)
