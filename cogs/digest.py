@@ -176,6 +176,7 @@ class Digest(commands.Cog):
             ),
             color=holiday["color"]
         )
+        header_embed.set_image(url='attachment://digest_farm_sunrise.jpg')
         return header_embed, holiday
 
     async def build_user_item_and_sale_embeds(self, user_id: int, embed_color: int):
@@ -289,7 +290,8 @@ class Digest(commands.Cog):
 
         await channel.send(
             content=f"Good morning, <@{user_id}>! {holiday['emoji']}",
-            embeds=all_embeds[:10]
+            embeds=all_embeds[:10],
+            file=discord.File('assets/banners/digest_farm_sunrise.jpg', filename='digest_farm_sunrise.jpg')
         )
         for i in range(10, len(all_embeds), 10):
             await channel.send(embeds=all_embeds[i:i + 10])
@@ -303,7 +305,8 @@ class Digest(commands.Cog):
 
         await interaction.followup.send(
             content=f"Good morning, {interaction.user.mention}! {holiday['emoji']}",
-            embeds=all_embeds[:10]
+            embeds=all_embeds[:10],
+            file=discord.File('assets/banners/digest_farm_sunrise.jpg', filename='digest_farm_sunrise.jpg')
         )
         for i in range(10, len(all_embeds), 10):
             await interaction.channel.send(embeds=all_embeds[i:i + 10])
