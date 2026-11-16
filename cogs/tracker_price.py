@@ -1,3 +1,4 @@
+from typing import Optional
 from ai_helper import smart_ai_post
 import os
 import tempfile
@@ -395,7 +396,7 @@ class TrackerPrice(commands.Cog):
 
     @app_commands.command(name="theme", description="Set the banner theme and/or a custom background image URL for /items. Pass an empty url to clear it.")
     @app_commands.choices(choice=[app_commands.Choice(name=label, value=key) for key, label in THEME_LABELS.items()])
-    async def theme(self, interaction: discord.Interaction, choice: app_commands.Optional[app_commands.Choice[str]] = None, url: app_commands.Optional[str] = None):
+    async def theme(self, interaction: discord.Interaction, choice: Optional[app_commands.Choice[str]] = None, url: Optional[str] = None):
         """Set the banner theme and/or a custom background image URL shown at the top of /items. Pass an empty url to clear the custom banner."""
         await interaction.response.defer(ephemeral=True)
         try:
