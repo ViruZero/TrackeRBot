@@ -166,6 +166,7 @@ class Digest(commands.Cog):
             joke_answer = joke.strip().rstrip('?.!')
             joke_setup = joke.rstrip('?.!').split('?')[0].strip() + "?"
 
+        # Create header embed with briefing content (no image)
         header_embed = discord.Embed(
             title=f"{holiday['emoji']} {holiday['title_prefix']} — {date_str}",
             description=(
@@ -176,8 +177,13 @@ class Digest(commands.Cog):
             ),
             color=holiday["color"]
         )
-        header_embed.set_image(url='attachment://daily_digest_banner.png')
-        return header_embed, holiday
+
+        # Create dedicated banner embed for the image at the top
+        banner_embed = discord.Embed(color=holiday["color"])
+        banner_embed.set_image(url='attachment://daily_digest_banner.png')
+
+        # Return ([banner_embed, header_embed], holiday) so banner appears first
+        return [banner_embed, header_embed], holiday
 
     async def build_user_item_and_sale_embeds(self, user_id: int, embed_color: int):
         self.c.execute(
@@ -284,9 +290,9 @@ class Digest(commands.Cog):
 
         return normal_embeds + sale_embeds
 
-    async def send_digest_for_user(self, channel, user_id: int, header_embed: discord.Embed, holiday: dict):
+    async def send_digest_for_user(self, channel, user_id: int, briefing_embeds: list, holiday: dict):
         item_embeds = await self.build_user_item_and_sale_embeds(user_id, holiday["color"])
-        all_embeds = [header_embed] + item_embeds
+        all_embeds = list(briefing_embeds) + item_embeds
 
         await channel.send(
             content=f"Good morning, <@{user_id}>! {holiday['emoji']}",
@@ -299,9 +305,9 @@ class Digest(commands.Cog):
     @app_commands.command(name="digest", description="Send your daily morning briefing and tracked item summary right now.")
     async def manual_digest(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        header_embed, holiday = await self.build_briefing_embed()
+        briefing_embeds, holiday = await self.build_briefing_embed()
         item_embeds = await self.build_user_item_and_sale_embeds(interaction.user.id, holiday["color"])
-        all_embeds = [header_embed] + item_embeds
+        all_embeds = list(briefing_embeds) + item_embeds
 
         await interaction.followup.send(
             content=f"Good morning, {interaction.user.mention}! {holiday['emoji']}",
@@ -332,8 +338,8 @@ class Digest(commands.Cog):
                     continue
 
             try:
-                header_embed, holiday = await self.build_briefing_embed()
-                await self.send_digest_for_user(ch, user_id, header_embed, holiday)
+                briefing_embeds, holiday = await self.build_briefing_embed()
+                await self.send_digest_for_user(ch, user_id, briefing_embeds, holiday)
                 print(f"[Digest] Sent digest to channel {channel_id} for user {user_id}", flush=True)
             except Exception as e:
                 print(f"[Digest] Error sending digest for user {user_id}: {e}", flush=True)
