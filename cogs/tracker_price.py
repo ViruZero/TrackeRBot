@@ -51,7 +51,7 @@ class TrackerPrice(commands.Cog):
         self.setup_database()
         self.c.execute('''CREATE TABLE IF NOT EXISTS user_banners
                          (user_id INTEGER PRIMARY KEY,
-                          theme TEXT NOT NULL DEFAULT 'pokeball')''')
+                          theme TEXT NOT NULL DEFAULT 'moon')''')
         self.conn.commit()
         cols = [r[1] for r in self.c.execute('PRAGMA table_info(user_banners)').fetchall()]
         if 'custom_url' not in cols:
@@ -102,7 +102,7 @@ class TrackerPrice(commands.Cog):
     def _resolve_banner(self, user_id, fallback_name):
         self.c.execute("SELECT theme, custom_url FROM user_banners WHERE user_id=?", (user_id,))
         row = self.c.fetchone()
-        theme, custom_url = row if row else ('pokeball', None)
+        theme, custom_url = row if row else ('moon', None)
 
         self.c.execute("SELECT prefix FROM users WHERE user_id=?", (user_id,))
         row = self.c.fetchone()
@@ -418,7 +418,7 @@ class TrackerPrice(commands.Cog):
                 # url-only: set/clear custom_url, keep existing theme
                 custom_url = url if url != '' else None
                 self.c.execute(
-                    "INSERT INTO user_banners(user_id, theme, custom_url) VALUES(?, 'pokeball', ?) "
+                    "INSERT INTO user_banners(user_id, theme, custom_url) VALUES(?, 'moon', ?) "
                     "ON CONFLICT(user_id) DO UPDATE SET custom_url=excluded.custom_url",
                     (interaction.user.id, custom_url)
                 )

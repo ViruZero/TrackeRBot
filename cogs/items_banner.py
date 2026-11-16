@@ -104,7 +104,7 @@ def _title(img, name):
     text = name + "'s Shopping List"
     fnt = font(46)
     cx, cy = W // 2, H // 2 + 2
-    _outline_text(draw, (cx, cy), text, fnt, (255, 255, 255, 255), (15, 15, 20, 255))
+    _outline_text(draw, (cx, cy), text, fnt, (255, 255, 255, 255), (252, 226, 150, 255))
 
 
 def _heart(draw, cx, cy, size, fill):
@@ -234,7 +234,7 @@ def _moon(img, draw):
     for _ in range(9):
         x, y = rng.randint(20, W - 20), rng.randint(14, H - 14)
         _star(draw, x, y, rng.choice([3, 4, 5]), (255, 224, 138, 235))
-    _glowing_crescent(img, 740, 88, 30)
+    _glowing_crescent(img, 148, 52, 30)
     # faint gold horizon glint
     draw.rectangle([0, H - 4, W, H], fill=(250, 214, 130, 90))
 
@@ -294,7 +294,7 @@ def _template_background(theme):
 
 def render_banner(theme, name, out_path):
     "Render the themed banner for `name` and save it to `out_path`."
-    theme = theme if theme in THEMES else 'pokeball'
+    theme = theme if theme in THEMES else 'moon'
     template = _template_background(theme)
     if template is not None:
         img = template
