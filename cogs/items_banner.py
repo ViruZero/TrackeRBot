@@ -131,12 +131,13 @@ def _star(draw, cx, cy, r, fill):
 
 
 def _glowing_crescent(draw, cx, cy, r, carve, moon=(252, 226, 150)):
-    for scale, alpha in [(2.1, 26), (1.65, 20), (1.3, 14), (1.05, 10)]:
+    for scale, alpha in [(1.5, 16), (1.25, 11), (1.05, 7)]:
         rr = int(r * scale)
         draw.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=(250, 214, 130, alpha))
     draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=moon + (255,))
-    draw.ellipse([cx - r + int(r * 0.42), cy - r, cx + r + int(r * 0.42), cy + r], fill=carve)
-    _star(draw, cx - int(r * 0.35), cy - int(r * 0.28), max(2, r // 4), (255, 255, 255, 230))
+    carve_cy = cy - int(r * 0.10)
+    draw.ellipse([cx - r + int(r * 0.95), carve_cy - r, cx + r + int(r * 0.95), carve_cy + r], fill=carve)
+    _star(draw, cx - int(r * 0.52), cy + int(r * 0.30), max(3, r // 3), (255, 255, 255, 255))
 
 
 
@@ -230,8 +231,7 @@ def _moon(img, draw):
     for _ in range(9):
         x, y = rng.randint(20, W - 20), rng.randint(14, H - 14)
         _star(draw, x, y, rng.choice([3, 4, 5]), (255, 224, 138, 235))
-    _glowing_crescent(draw, 118, 56, 24, (30, 36, 62, 255))
-    _glowing_crescent(draw, 745, 118, 16, (17, 21, 45, 255))
+    _glowing_crescent(draw, 740, 88, 30, (30, 36, 62, 255))
     # faint gold horizon glint
     draw.rectangle([0, H - 4, W, H], fill=(250, 214, 130, 90))
 
