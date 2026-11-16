@@ -72,7 +72,7 @@ def _inner_border(img):
                            outline=(0, 0, 0, 90), width=1)
 
 
-def _pixel_title(img, name, fill, outline):
+def _pixel_title(img, name, fill, outline, title_dy=0):
     """8-bit style title: render bold text small, nearest-neighbor upscale it."""
     text = name + "'s Shopping List"
     small = Image.new('RGBA', (2000, 90), (0, 0, 0, 0))
@@ -91,7 +91,7 @@ def _pixel_title(img, name, fill, outline):
         shrink = (W - 24) / up.width
         up = up.resize((max(1, int(up.width * shrink)), max(1, int(up.height * shrink))), Image.NEAREST)
     canvas = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    canvas.paste(up, ((W - up.width) // 2, (H - up.height) // 2), up)
+    canvas.paste(up, ((W - up.width) // 2, (H - up.height) // 2 - title_dy), up)
     img.alpha_composite(canvas)
 
 
@@ -109,7 +109,7 @@ ART_THEMES = {
     'pastel_cats': {'file': 'pastel_cats.jpg', 'fill': (255, 255, 255, 255),
                     'outline': (80, 46, 80, 255), 'label': 'Pastel Cats'},
     'dog_park': {'file': 'dog_park.jpg', 'fill': (255, 255, 255, 255),
-                 'outline': (44, 32, 12, 255), 'label': 'Dog Park'},
+                 'outline': (44, 32, 12, 255), 'label': 'Dog Park', 'title_dy': 34},
 }
 
 THEME_LABELS = {key: cfg['label'] for key, cfg in ART_THEMES.items()}
@@ -124,7 +124,7 @@ def render_banner(theme, name, out_path):
     img = _cover_crop(Image.open(art)) if art.is_file() else Image.new('RGBA', (W, H), (16, 16, 32, 255))
     _inner_border(img)
     cfg = ART_THEMES[theme]
-    _pixel_title(img, name, cfg['fill'], cfg['outline'])
+    _pixel_title(img, name, cfg['fill'], cfg['outline'], cfg.get('title_dy', 0))
     img = _apply_rounded(img)
     img.save(out_path)
 
