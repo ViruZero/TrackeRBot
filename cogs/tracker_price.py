@@ -12,7 +12,8 @@ import re
 import traceback
 import requests
 from cogs.tracker_image import fetch_page_data, parse_with_ai
-from cogs.items_banner import render_banner, THEME_LABELS
+from cogs.items_banner import render_banner, render_custom_banner, THEME_LABELS
+from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, 'tracker.db')
@@ -51,6 +52,10 @@ class TrackerPrice(commands.Cog):
                          (user_id INTEGER PRIMARY KEY,
                           theme TEXT NOT NULL DEFAULT 'pokeball')''')
         self.conn.commit()
+        cols = [r[1] for r in self.c.execute('PRAGMA table_info(user_banners)').fetchall()]
+        if 'custom_url' not in cols:
+            self.c.execute('ALTER TABLE user_banners ADD COLUMN custom_url TEXT')
+            self.conn.commit()
 
     def setup_database(self):
         # Create table with composite primary key (id, user_id) so each user has their own 1, 2, 3... IDs
@@ -94,9 +99,9 @@ class TrackerPrice(commands.Cog):
         self.conn.close()
 
     def _resolve_banner(self, user_id, fallback_name):
-        self.c.execute("SELECT theme FROM user_banners WHERE user_id=?", (user_id,))
+        self.c.execute("SELECT theme, custom_url FROM user_banners WHERE user_id=?", (user_id,))
         row = self.c.fetchone()
-        theme = row[0] if row else 'pokeball'
+        theme, custom_url = row if row else ('pokeball', None)
 
         self.c.execute("SELECT prefix FROM users WHERE user_id=?", (user_id,))
         row = self.c.fetchone()
@@ -108,13 +113,22 @@ class TrackerPrice(commands.Cog):
                 name = prefix
         else:
             name = fallback_name
-        return (theme, name)
+        return (theme, name, custom_url)
 
     def _make_banner_file(self, user_id, fallback_name):
         try:
-            theme, name = self._resolve_banner(user_id, fallback_name)
+            theme, name, custom_url = self._resolve_banner(user_id, fallback_name)
             out_path = os.path.join(tempfile.gettempdir(), f'items_banner_{uuid.uuid4().hex}.png')
-            render_banner(theme, name, out_path)
+            if custom_url:
+                try:
+                    resp = requests.get(custom_url, timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+                    resp.raise_for_status()
+                    render_custom_banner(resp.content, name, out_path)
+                except Exception:
+                    traceback.print_exc()
+                    render_banner(theme, name, out_path)
+            else:
+                render_banner(theme, name, out_path)
             return discord.File(out_path, filename='items_banner.png'), out_path
         except Exception:
             traceback.print_exc()
@@ -379,17 +393,54 @@ class TrackerPrice(commands.Cog):
         self.conn.commit()
         await interaction.response.send_message(f"Item ID {item_id} removed from tracker.")
 
-    @app_commands.command(name="theme", description="Pick the banner theme shown at the top of /items.")
+    @app_commands.command(name="theme", description="Set the banner theme and/or a custom background image URL for /items. Pass an empty url to clear it.")
     @app_commands.choices(choice=[app_commands.Choice(name=label, value=key) for key, label in THEME_LABELS.items()])
-    async def theme(self, interaction: discord.Interaction, choice: app_commands.Choice[str]):
+    async def theme(self, interaction: discord.Interaction, choice: app_commands.Optional[app_commands.Choice[str]] = None, url: app_commands.Optional[str] = None):
+        """Set the banner theme and/or a custom background image URL shown at the top of /items. Pass an empty url to clear the custom banner."""
         await interaction.response.defer(ephemeral=True)
         try:
-            self.c.execute("INSERT OR REPLACE INTO user_banners (user_id, theme) VALUES (?, ?)", (interaction.user.id, choice.value))
+            if url is not None and url != '' and not url.startswith(('http://', 'https://')):
+                await interaction.followup.send("URL must start with http:// or https://", ephemeral=True)
+                return
+
+            if choice is None and url is None:
+                await interaction.followup.send("Nothing to do — pass a theme and/or a custom background image URL.", ephemeral=True)
+                return
+
+            changes = []
+            if choice is not None:
+                changes.append(f"theme set to {choice.name}")
+            if url is not None:
+                changes.append("custom banner cleared" if url == '' else "custom banner url set")
+
+            if choice is None:
+                # url-only: set/clear custom_url, keep existing theme
+                custom_url = url if url != '' else None
+                self.c.execute(
+                    "INSERT INTO user_banners(user_id, theme, custom_url) VALUES(?, 'pokeball', ?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET custom_url=excluded.custom_url",
+                    (interaction.user.id, custom_url)
+                )
+            elif url is None:
+                # theme-only: update theme, keep existing custom_url
+                self.c.execute(
+                    "INSERT INTO user_banners(user_id, theme, custom_url) VALUES(?, ?, NULL) "
+                    "ON CONFLICT(user_id) DO UPDATE SET theme=excluded.theme",
+                    (interaction.user.id, choice.value)
+                )
+            else:
+                # both given: set both
+                custom_url = url if url != '' else None
+                self.c.execute(
+                    "INSERT INTO user_banners(user_id, theme, custom_url) VALUES(?, ?, ?) "
+                    "ON CONFLICT(user_id) DO UPDATE SET theme=excluded.theme, custom_url=excluded.custom_url",
+                    (interaction.user.id, choice.value, custom_url)
+                )
             self.conn.commit()
-            await interaction.followup.send(f"Banner theme set to {choice.name}. Run /items to see it!", ephemeral=True)
+            await interaction.followup.send("Banner updated: " + ", ".join(changes) + ". Run /items to see it!", ephemeral=True)
         except Exception:
             traceback.print_exc()
-            await interaction.followup.send("Failed to set banner theme. Please try again.", ephemeral=True)
+            await interaction.followup.send("Failed to update banner settings. Please try again.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(TrackerPrice(bot))
