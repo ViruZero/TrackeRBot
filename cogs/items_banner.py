@@ -86,10 +86,10 @@ def _inner_border(img):
                            outline=(0, 0, 0, 90), width=1)
 
 
-def _outline_text(draw, xy, text, fnt, fill, outline, width=3):
+def _outline_text(draw, xy, text, fnt, fill, outline, width=4):
     "Drop shadow + 8-direction outline + center fill."
     x, y = xy
-    draw.text((x + 2, y + 2), text, font=fnt, fill=(0, 0, 0, 190), anchor='mm')
+    draw.text((x + 3, y + 3), text, font=fnt, fill=(0, 0, 0, 220), anchor='mm')
     for dx in (-width, 0, width):
         for dy in (-width, 0, width):
             if dx == 0 and dy == 0:
@@ -99,19 +99,11 @@ def _outline_text(draw, xy, text, fnt, fill, outline, width=3):
 
 
 def _title(img, name):
-    """Soft dark semi-transparent pill behind a centered outlined white title."""
+    """Centered outlined white title."""
     draw = ImageDraw.Draw(img)
     text = name + "'s Shopping List"
     fnt = font(46)
     cx, cy = W // 2, H // 2 + 2
-    bbox = draw.textbbox((cx, cy), text, font=fnt, anchor='mm')
-    draw.rounded_rectangle(
-        [bbox[0] - 28, bbox[1] - 13, bbox[2] + 28, bbox[3] + 13],
-        radius=24,
-        fill=(8, 10, 18, 150),
-        outline=(255, 255, 255, 70),
-        width=1,
-    )
     _outline_text(draw, (cx, cy), text, fnt, (255, 255, 255, 255), (15, 15, 20, 255))
 
 
