@@ -103,9 +103,10 @@ def _title(img, text, theme):
     draw = ImageDraw.Draw(img)
     text = text + "'s Shopping List"
     fill = (255, 255, 255, 255) if theme in ('moon', 'pokeball') else (28, 32, 64, 255)
+    outline = OUTLINES.get(theme, (15, 15, 20, 255))
     fnt = font(46)
     cx, cy = W // 2, H // 2 + 2
-    _outline_text(draw, (cx, cy), text, fnt, fill, (252, 226, 150, 255))
+    _outline_text(draw, (cx, cy), text, fnt, fill, outline)
 
 
 def _heart(draw, cx, cy, size, fill):
@@ -279,6 +280,10 @@ THEME_LABELS = {
     'mint': 'Minty Pixel',
     'moon': 'Moonlit Gold',
     'hearts': 'Cozy Hearts',
+}
+
+OUTLINES = {
+    'moon': (188, 148, 66, 255),
 }
 
 
