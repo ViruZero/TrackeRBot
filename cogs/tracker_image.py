@@ -54,10 +54,8 @@ def is_blocked_page(html_content: str, body_text: str, current_url: str = "") ->
         "unusual traffic from your computer",
         "verify you are human",
         "pardon our interruption",
-        "x5secdata",
         "captcharecaptcha",
         "/punish?",
-        "mtop.aliexpress.pdp.pc.query",
         "_____tmd_____",
         "action=captcha"
     ]
