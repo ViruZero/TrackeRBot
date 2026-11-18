@@ -502,8 +502,11 @@ async def fetch_page_data(url: str):
 
     if page_text and price_hints:
         page_text = f"HIGH PRIORITY PRICE SIGNALS:\n{price_hints}\n\nPAGE CONTENT:\n{page_text}"
+    hint_count = len(price_hints.splitlines()) if price_hints else 0
+    print(f"price_hints populated: {hint_count} entries", flush=True)
     if locked_price and locked_price > 0:
         page_text = f"LOCKED_PRICE:{locked_price}\n" + page_text
+        print(f"locked_price extracted: {locked_price}", flush=True)
 
     return page_text, fetch_method, image_url
 
@@ -520,6 +523,7 @@ async def parse_with_ai(text: str):
     dollar_snippets = re.findall(r'.{0,60}\$\s?\d+(?:,\d{3})*(?:\.\d{2})?.{0,60}', text)
     if not dollar_snippets and locked_price <= 0:
         print("--- AI GUARDRAIL: No dollar prices found in page text. Aborting to prevent AI hallucination. ---", flush=True)
+        print("--- AI GUARDRAIL: No dollar prices found, locked_price=", locked_price, flush=True)
         return "Unknown Product", 0.0
 
     focused_prices = "\n".join(dollar_snippets[:25])
@@ -548,15 +552,19 @@ async def parse_with_ai(text: str):
             smart_ai_post, "http://localhost:11434/api/generate", json=payload, timeout=30
         )
         raw_response = ai_response.json().get("response", "").strip()
+        print(f"Raw AI Output: {raw_response}", flush=True)
         try:
             data = json.loads(raw_response)
+            print(f"JSON parse result: {data}", flush=True)
         except Exception as je:
-            print("--- AI EXTRACTION FAILED (JSON Error) ---", flush=True)
-            print(f"Raw AI Output: {raw_response}", flush=True)
-            print(f"Error: {je}", flush=True)
-            print("----------------------------", flush=True)
+            print(f"JSON parse result: error: {je}", flush=True)
             m = re.search(r'\{.*\}', raw_response, re.DOTALL)
-            data = json.loads(m.group(0)) if m else {}
+            try:
+                data = json.loads(m.group(0)) if m else {}
+                print(f"JSON parse result (regex fallback): {data}", flush=True)
+            except Exception as e:
+                print(f"JSON parse result: error: {e}", flush=True)
+                data = {}
 
         title = str(data.get("title") or "Unknown Product").strip()
         raw_price_val = data.get("price", 0.0)

@@ -79,10 +79,12 @@ def build_endpoint(base_url):
 
 
 def build_prompt(user_prompt):
-    """Append the standard text-free, pixel-art style instruction."""
+    """Prepend the standard pixel-art style wrapper to prompts."""
     return (
+        "authentic 16-bit SNES pixel art sprite background, Stardew Valley style, "
+        "hard pixel edges, dithering, flat pixel shading, no smooth gradients, "
+        "no anti-aliasing, no text. "
         f"{user_prompt}. "
-        "16-bit cozy farming RPG pixel art style, wide 4:1 banner composition, "
         "absolutely no text, no letters, no words, no typography, no watermarks."
     )
 
@@ -141,7 +143,13 @@ def generate_image(api_token, endpoint, prompt):
 
 
 def process_image(image_bytes, width, height):
-    """Center-crop to the target aspect ratio and resize to (width, height)."""
+    """Center-crop to target aspect, pixelate, quantize, upscale to (width, height).
+
+    Pixelation pipeline: downsample to 1/4 resolution (BOX), quantize to a
+    limited 40-color palette (MEDIANCUT, Dither.NONE), then upscale with NEAREST
+    so every pixel is sharp and blocky — matching the existing daily_digest_banner
+    chunky 16-bit pixel-art style.
+    """
     try:
         img = Image.open(io.BytesIO(image_bytes))
         img.load()
@@ -161,11 +169,15 @@ def process_image(image_bytes, width, height):
         top = (src_h - new_h) // 2
         img = img.crop((0, top, src_w, top + new_h))
 
-    if max(img.size) <= PIXEL_ART_MAX_DIM:
-        resample = Image.Resampling.NEAREST
-    else:
-        resample = Image.Resampling.LANCZOS
-    img = img.resize((width, height), resample)
+    # Pixelate: shrink to 1/4 resolution, quantize to limited palette, upscale sharp.
+    small_w = max(1, width // 4)
+    small_h = max(1, height // 4)
+    img = img.resize((small_w, small_h), Image.Resampling.BOX)
+    img = img.quantize(
+        colors=40, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE
+    )
+    img = img.convert("RGB")
+    img = img.resize((width, height), Image.Resampling.NEAREST)
 
     if img.mode not in ("RGB", "RGBA", "L"):
         img = img.convert("RGB")
