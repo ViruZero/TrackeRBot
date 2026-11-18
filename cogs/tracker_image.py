@@ -53,7 +53,13 @@ def is_blocked_page(html_content: str, body_text: str, current_url: str = "") ->
         "slide to verify",
         "unusual traffic from your computer",
         "verify you are human",
-        "pardon our interruption"
+        "pardon our interruption",
+        "x5secdata",
+        "captcharecaptcha",
+        "/punish?",
+        "mtop.aliexpress.pdp.pc.query",
+        "_____tmd_____",
+        "action=captcha"
     ]
     for phrase in block_phrases:
         if phrase in lower_body or phrase in lower_html:
@@ -249,6 +255,80 @@ def extract_price_hints(html_content: str) -> tuple[str, float]:
                 if locked_price == 0.0:
                     locked_price = val
                 break
+
+    try:
+        rp_idx = html_content.find("window.runParams")
+        if rp_idx != -1:
+            brace_start = html_content.find("{", rp_idx)
+            if brace_start != -1:
+                depth = 0
+                in_str = False
+                escape = False
+                end_idx = -1
+                for i in range(brace_start, len(html_content)):
+                    ch = html_content[i]
+                    if in_str:
+                        if escape:
+                            escape = False
+                        elif ch == "\\":
+                            escape = True
+                        elif ch == '"':
+                            in_str = False
+                        continue
+                    if ch == '"':
+                        in_str = True
+                    elif ch == '{':
+                        depth += 1
+                    elif ch == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end_idx = i
+                            break
+
+                if end_idx != -1:
+                    run_params = json.loads(html_content[brace_start:end_idx + 1])
+                    run_prices = []
+
+                    def _num(v):
+                        if isinstance(v, (int, float)):
+                            return float(v)
+                        if isinstance(v, str):
+                            m = re.search(r'\d+(?:\.\d+)?', v.replace(',', ''))
+                            if m:
+                                try:
+                                    return float(m.group(0))
+                                except ValueError:
+                                    return 0.0
+                        return 0.0
+
+                    def _walk(node):
+                        if isinstance(node, dict):
+                            for key, value in node.items():
+                                if key in ("minActivityAmount", "discountPrice") and isinstance(value, dict):
+                                    val = _num(value.get("value"))
+                                    if val > 0:
+                                        run_prices.append(val)
+                                elif key in ("actMinPrice", "minPrice", "salePrice", "originalPrice"):
+                                    val = _num(value)
+                                    if val > 0:
+                                        run_prices.append(val)
+                                elif key in ("formatedActivityPrice", "formatedPrice"):
+                                    val = _num(value)
+                                    if val > 0:
+                                        run_prices.append(val)
+                                _walk(value)
+                        elif isinstance(node, list):
+                            for item in node:
+                                _walk(item)
+
+                    _walk(run_params)
+                    if run_prices:
+                        rp_price = run_prices[0]
+                        hints.append(f"Embedded runParams Price: ${rp_price:.2f}")
+                        if locked_price == 0.0:
+                            locked_price = rp_price
+    except Exception:
+        pass
 
     return "\n".join(hints), locked_price
 
