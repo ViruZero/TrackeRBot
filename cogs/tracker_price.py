@@ -278,7 +278,10 @@ class TrackerPrice(commands.Cog):
             embed = self.build_item_embed(item_id, url, title, target_price, current_price, current_price, image_url, comparison_links)
             await interaction.followup.send(embed=embed)
         else:
-            await interaction.followup.send("Failed to extract price using Local AI.")
+            if 'aliexpress.' in url.lower():
+                await interaction.followup.send("AliExpress hid the price behind dynamic JS/captcha — upload a screenshot to /track instead")
+            else:
+                await interaction.followup.send("Failed to extract price using Local AI.")
 
     @app_commands.command(name="items", description="List all tracking items, or view a specific one by ID.")
     async def list_items(self, interaction: discord.Interaction, item_id: int = None):
