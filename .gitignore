@@ -6,3 +6,5 @@ tracker.db
 .aider*
 
 .aider.conf.yml
+
+trackerbot.log

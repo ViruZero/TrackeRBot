@@ -32,7 +32,7 @@ class Alert(commands.Cog):
 
     async def generate_comparison_links(self, full_title: str):
         prompt = "Take this messy e-commerce product title and extract just the core product name or model. Make it 4 words or less. Return ONLY the short name, nothing else.\n\nTitle: " + full_title
-        payload = {"model": "llama3.1", "prompt": prompt, "stream": False}
+        payload = {"model": "qwen3.5:9b", "prompt": prompt, "stream": False}
         try:
             ai_resp = await asyncio.to_thread(smart_ai_post, "http://localhost:11434/api/generate", json=payload)
             short = ai_resp.json().get("response", "").strip()

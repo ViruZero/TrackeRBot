@@ -66,7 +66,7 @@ class Search(commands.Cog):
             "Format the output strictly as a bulleted list with the Product Name and Price.\n\n"
             f"Text: {page_text[:15000]}" 
         )
-        payload = {"model": "llama3.1", "prompt": prompt, "stream": False}
+        payload = {"model": "qwen3.5:9b", "prompt": prompt, "stream": False}
         
         try:
             ai_response = await asyncio.to_thread(smart_ai_post, "http://localhost:11434/api/generate", json=payload)

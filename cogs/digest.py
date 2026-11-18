@@ -93,7 +93,7 @@ class Digest(commands.Cog):
                 "Do not mention the date or day. "
                 "Return ONLY the quote text, no quotation marks or author needed."
             )
-            quote_payload = {"model": "llama3.1", "prompt": quote_prompt, "stream": False}
+            quote_payload = {"model": "qwen3.5:9b", "prompt": quote_prompt, "stream": False}
             try:
                 q_resp = await asyncio.to_thread(
                     smart_ai_post, "http://localhost:11434/api/generate", json=quote_payload, timeout=20
@@ -132,7 +132,7 @@ class Digest(commands.Cog):
                 "The joke must NOT be about programming or tech. "
                 "Format it exactly as: 'Setup? ||Punchline||' where only the punchline is wrapped in double pipe spoiler markers."
             )
-            joke_payload = {"model": "llama3.1", "prompt": joke_prompt, "stream": False}
+            joke_payload = {"model": "qwen3.5:9b", "prompt": joke_prompt, "stream": False}
             try:
                 j_resp = await asyncio.to_thread(
                     smart_ai_post, "http://localhost:11434/api/generate", json=joke_payload, timeout=20
@@ -248,7 +248,7 @@ class Digest(commands.Cog):
                 )
 
             try:
-                ai_payload = {"model": "llama3.1", "prompt": ai_prompt, "stream": False}
+                ai_payload = {"model": "qwen3.5:9b", "prompt": ai_prompt, "stream": False}
                 ai_resp = await asyncio.to_thread(
                     smart_ai_post, "http://localhost:11434/api/generate", json=ai_payload, timeout=20
                 )

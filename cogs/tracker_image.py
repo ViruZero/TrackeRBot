@@ -1,5 +1,6 @@
 from ai_helper import smart_ai_post
 import asyncio
+import logging
 import os
 import re
 import json
@@ -18,6 +19,13 @@ except ImportError:
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+logger = logging.getLogger("trackerbot")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.FileHandler("trackerbot.log", encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
 
 def clean_product_url(url: str) -> str:
     """Strips tracking parameters, analytics bloat, and query strings from URLs."""
@@ -540,13 +548,14 @@ async def parse_with_ai(text: str):
     )
 
     payload = {
-        "model": "llama3.1",
+        "model": "qwen3.5:9b",
         "prompt": prompt,
         "stream": False,
         "format": "json",
         "options": {"temperature": 0.0, "top_p": 0.1}
     }
 
+    raw_response = ""
     try:
         ai_response = await asyncio.to_thread(
             smart_ai_post, "http://localhost:11434/api/generate", json=payload, timeout=30
@@ -557,12 +566,14 @@ async def parse_with_ai(text: str):
             data = json.loads(raw_response)
             print(f"JSON parse result: {data}", flush=True)
         except Exception as je:
+            logger.error(f"JSON parse failed. Raw AI Output: {raw_response}")
             print(f"JSON parse result: error: {je}", flush=True)
             m = re.search(r'\{.*\}', raw_response, re.DOTALL)
             try:
                 data = json.loads(m.group(0)) if m else {}
                 print(f"JSON parse result (regex fallback): {data}", flush=True)
             except Exception as e:
+                logger.error(f"JSON parse failed (regex fallback). Raw AI Output: {raw_response}")
                 print(f"JSON parse result: error: {e}", flush=True)
                 data = {}
 
@@ -577,5 +588,7 @@ async def parse_with_ai(text: str):
         final_price = locked_price if (locked_price and locked_price > 0) else ai_price
         return title, final_price
     except Exception as e:
+        logger.exception("AI call failed")
+        logger.error(f"Raw AI Output: {raw_response}")
         print(f"Local AI Error: {e}", flush=True)
         return "Unknown Product", (locked_price if locked_price > 0 else 0.0)

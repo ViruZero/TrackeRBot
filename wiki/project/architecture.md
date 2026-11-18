@@ -7,5 +7,5 @@
   - `user_banners(user_id PK, theme DEFAULT 'starry_night', custom_url TEXT NULL)` — custom_url added via ALTER if missing.
 - Deploy: `python deploy.py` from repo root → py_compile all `*.py` + `cogs/*.py` → `git add/commit/push` → `ssh oracle-bot` → `sudo systemctl restart trackerbot.service` + journalctl tail.
 - Entry point `bot.py` loads cogs from `cogs/`; price checks in `cogs/check.py` / `cogs/tracker_price.py`; digest in `cogs/digest.py`.
-- AI routing: `ai_helper.py` `smart_ai_post` — Ollama local → Groq Cloud fallback.
+- AI routing: `ai_helper.py` `smart_ai_post` — Ollama local → Groq Cloud (`openai/gpt-oss-120b`) → Gemini (`gemini-2.5-flash`, `GEMINI_API_KEY`). All tiers log failures with tracebacks to `trackerbot.log` (gitignored). Ollama payloads must use an installed model from `ollama list` (currently `qwen3.5:9b`) — `llama3.1` was never installed and caused silent price-extraction failure.
 - Digest banner: `cogs/digest.py` sends `[banner_embed, briefing_embed]` — banner_embed only sets `set_image(url='attachment://daily_digest_banner.png')` (same accent color), briefing_embed carries title/description; `discord.File('assets/banners/daily_digest_banner.png')` attached to the send. Keeps banner above the text.
