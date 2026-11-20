@@ -552,7 +552,9 @@ async def fetch_page_data(url: str):
     # 4. Scrapfly Fallback (Specialized Akamai / DataDome Bypass)
     if not page_text:
         scrapfly_key = os.getenv("SCRAPFLY_API_KEY")
-        if scrapfly_key:
+        if is_aliexpress:
+            print("[Scrapfly] Skipping AliExpress URL to preserve Scrapfly credits (captcha wall)", flush=True)
+        elif scrapfly_key:
             try:
                 sf_params = {
                     "key": scrapfly_key,

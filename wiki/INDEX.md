@@ -8,4 +8,4 @@ Shared memory for the crew (Chief of Staff, artist, developer). Read this first,
 - [project/crew_roster.md](project/crew_roster.md) — Chief of Staff / artist / developer roles
 
 ## research/ (external API/web notes — never promoted into project/ without a crew decision)
-- (empty)
+- [research/zenrows_aliexpress.md](research/zenrows_aliexpress.md) — autoparse=true on /item/ and /w/wholesale- returns image/i18n metadata only, zero price fields (2026-11-18)
