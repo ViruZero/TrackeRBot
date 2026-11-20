@@ -8,6 +8,7 @@ import asyncio
 import requests
 from urllib.parse import urlparse, quote_plus
 from cogs.tracker_image import fetch_page_data, parse_with_ai
+from cogs.aliexpress import is_aliexpress_url
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, 'tracker.db')
@@ -80,7 +81,12 @@ class Check(commands.Cog):
         
         page_text, fetch_method, new_image = await fetch_page_data(url)
         if not page_text:
-            await interaction.followup.send(f"Failed to fetch ID {item_id}. Anti-bot systems blocked both methods.")
+            message = (f"AliExpress did not provide a verifiable USD price for ID {item_id}. "
+                       "The page may be blocked or the selected variant could not be confirmed. "
+                       "Your previously recorded price has been kept."
+                       if is_aliexpress_url(url)
+                       else f"Failed to fetch ID {item_id}. The configured fetch methods could not load the product.")
+            await interaction.followup.send(message)
             return
             
         _, new_price = await parse_with_ai(page_text)

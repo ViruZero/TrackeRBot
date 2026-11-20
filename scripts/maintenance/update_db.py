@@ -1,6 +1,8 @@
 import sqlite3
+from pathlib import Path
 
-conn = sqlite3.connect('tracker.db')
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+conn = sqlite3.connect(PROJECT_ROOT / 'tracker.db')
 c = conn.cursor()
 
 # Try to add the new column to the existing table

@@ -2,3 +2,7 @@
 # Installed in the server venv at /home/ubuntu/TrackerBot/venv/bin/pip
 discord.py>=2.3
 Pillow>=10.0
+requests>=2.31
+python-dotenv>=1.0
+beautifulsoup4>=4.12
+playwright>=1.40

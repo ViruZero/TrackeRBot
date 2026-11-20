@@ -13,6 +13,7 @@ import re
 import traceback
 import requests
 from cogs.tracker_image import fetch_page_data, parse_with_ai
+from cogs.aliexpress import is_aliexpress_url
 from cogs.items_banner import render_banner, render_custom_banner, THEME_LABELS
 from io import BytesIO
 
@@ -246,7 +247,11 @@ class TrackerPrice(commands.Cog):
 
         page_text, fetch_method, image_url = await fetch_page_data(url)
         if not page_text:
-            await interaction.followup.send("Failed to fetch product page.")
+            message = ("AliExpress did not provide a verifiable USD price for this product/variant. "
+                       "The page may be blocked, show a price range, or require login. "
+                       "No item was added. Try again later with the full product link."
+                       if is_aliexpress_url(url) else "Failed to fetch product page.")
+            await interaction.followup.send(message)
             return
             
         title, current_price = await parse_with_ai(page_text)
@@ -279,7 +284,7 @@ class TrackerPrice(commands.Cog):
             await interaction.followup.send(embed=embed)
         else:
             if 'aliexpress.' in url.lower():
-                await interaction.followup.send("AliExpress hid the price behind dynamic JS/captcha — upload a screenshot to /track instead")
+                await interaction.followup.send("AliExpress did not provide a verifiable USD price. No item was added; try again later.")
             else:
                 await interaction.followup.send("Failed to extract price using Local AI.")
 

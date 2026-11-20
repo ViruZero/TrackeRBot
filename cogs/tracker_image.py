@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
+from cogs.aliexpress import is_aliexpress_url, fetch_product, RESULT_PREFIX
 
 try:
     from curl_cffi import requests as cffi_requests
@@ -28,8 +29,10 @@ if not logger.handlers:
     logger.addHandler(handler)
 
 def clean_product_url(url: str) -> str:
-    """Strips tracking parameters, analytics bloat, and query strings from URLs."""
+    """Preserve AliExpress variants; strip query strings for legacy fetchers."""
     parsed = urlparse(url)
+    if is_aliexpress_url(url):
+        return parsed._replace(fragment="").geturl()
     netloc = parsed.netloc.lower()
     path = parsed.path
 
@@ -372,6 +375,8 @@ async def fetch_rei_direct(target_url: str):
 
 async def fetch_page_data(url: str):
     target_url = clean_product_url(url)
+    if is_aliexpress_url(target_url):
+        return await fetch_product(target_url)
     is_aliexpress = "aliexpress." in target_url.lower()
     is_rei = "rei.com" in target_url.lower()
 
@@ -600,6 +605,9 @@ async def fetch_page_data(url: str):
 
 
 async def parse_with_ai(text: str):
+    if text.startswith(RESULT_PREFIX):
+        product = json.loads(text[len(RESULT_PREFIX):])
+        return product["title"], product["price"]
     locked_price = 0.0
     if text.startswith("LOCKED_PRICE:"):
         first_line, text = text.split("\n", 1)

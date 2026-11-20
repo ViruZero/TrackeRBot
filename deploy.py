@@ -1,7 +1,7 @@
 ﻿import glob, py_compile, subprocess, sys
 
 print("1. Running local Python syntax check...")
-for path in glob.glob("*.py") + glob.glob("cogs/*.py"):
+for path in glob.glob("*.py") + glob.glob("cogs/*.py") + glob.glob("scripts/**/*.py", recursive=True):
     try:
         py_compile.compile(path, doraise=True)
     except py_compile.PyCompileError as e:

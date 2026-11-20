@@ -1,5 +1,9 @@
 # Architecture (canonical decisions)
 
+AliExpress implementation update: [aliexpress.md](aliexpress.md) describes the
+current dedicated fetch path. It supersedes the historical AliExpress pipeline
+and screenshot error-message notes below; those describe the previous version.
+
 - UI: Discord **Components V2** (`ui.LayoutView`, `ui.Container`, accent_color) — see `cogs/tracker_price.py` (`/items` list). No legacy embed-only layouts for new UI.
 - Storage: SQLite at `tracker.db` (project root). Tables:
   - `users(user_id PK, prefix, shopping_channel_id, digest_channel_id, alerts_channel_id)` — note `cogs/users.py` still has the older 3-col variant; `cogs/register.py` is the current 4-col one.
